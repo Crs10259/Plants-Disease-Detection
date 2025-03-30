@@ -1,0 +1,92 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+venv/
+env/
+ENV/
+.env
+.venv
+env.bak/
+venv.bak/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.project
+.pydevproject
+.settings/
+
+# 项目特定文件和目录
+data/
+checkpoints/
+logs/
+submit/
+aug/
+*.log
+*.pth
+*.pt
+*.tar
+*.pkl
+*.h5
+baseline.json
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 临时文件
+*.tmp
+*.bak
+*.swp
+*~
+
+# 大文件和数据集
+*.zip
+*.rar
+*.7z
+*.gz
+*.tar
+*.mp4
+*.avi
+*.mov
+
+# 敏感信息
+.env
+.secret
+credentials.json
+config.local.py
+
+# 实验和测试
+experiments/
+test_results/
+temp/
+
+# 取消忽略特定文件
+!data/.gitkeep
+!checkpoints/.gitkeep
+!logs/.gitkeep
+!submit/.gitkeep
+!aug/.gitkeep 
