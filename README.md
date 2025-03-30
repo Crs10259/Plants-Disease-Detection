@@ -117,32 +117,6 @@ python train.py
    - 确保图像路径中没有中文字符
    - 查看日志文件了解详细错误信息
 
-##项目结构
-
-```bash
-.
-├── data/ # 数据目录
-│ ├── train/ # 训练数据集（按类别分类）
-│ └── test/ # 测试数据集
-├── aug/ # 数据增强后的图像存储目录
-├── checkpoints/ # 模型检查点
-│ └── best_model/ # 最佳模型存储
-├── submit/ # 预测结果提交
-├── logs/ # 训练日志
-├── config.py # 配置文件
-├── train.py # 训练脚本
-├── utils.py # 工具函数
-├── data_aug.py # 数据增强脚本
-├── move.py # 数据文件移动工具
-├── models/ # 模型定义
-│ ├── init.py
-│ └── model.py # 模型架构
-├── dataset/ # 数据集相关代码
-│ ├── init.py
-│ └── dataloader.py # 数据加载器
-└── requirements.txt # 项目依赖
-```
-
 ## 许可证
 
 1. 将训练数据放在 `./data/train/` 目录下，每个类别有一个子目录

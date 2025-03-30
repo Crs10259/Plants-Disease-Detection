@@ -135,11 +135,11 @@ def get_scheduler(optimizer, num_epochs, steps_per_epoch=None):
             gamma=0.1
         )
     elif config.scheduler == 'cosine':
-        # 带预热的余弦退火
+        # 带预热的余弦退火 - 修复参数错误
         scheduler = CosineLRScheduler(
             optimizer,
             t_initial=num_epochs,
-            t_mul=1.0,
+            # 移除 t_mul 参数
             lr_min=1e-6,
             warmup_lr_init=config.lr * config.warmup_factor,
             warmup_t=config.warmup_epochs,

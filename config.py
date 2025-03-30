@@ -3,7 +3,7 @@ class DefaultConfigs(object):
     train_data: str = "./data/train/"
     test_data: str = "./data/test/images/"
     val_data: str = "no"
-    model_name: str = "efficientnetv2_s"  # 更新为性能更好的模型
+    model_name: str = "efficientnet_b4"  # 更新为性能更好且有预训练权重的模型
     weights: str = "./checkpoints/"
     best_models: str = weights + "best_model/"
     submit: str = "./submit/"
@@ -47,7 +47,7 @@ class DefaultConfigs(object):
     use_random_erasing: bool = True  # 使用随机擦除增强
     
     # 数据增强配置
-    use_data_aug: bool = True  # 启用数据增强
+    use_data_aug: bool = False  # 启用数据增强
     aug_noise: bool = True      # 是否添加噪声
     aug_brightness: bool = True  # 是否调整亮度
     aug_flip: bool = True       # 是否进行翻转

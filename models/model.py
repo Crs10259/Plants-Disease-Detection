@@ -61,7 +61,15 @@ def get_efficientnet():
 
 def get_efficientnetv2():
     """获取EfficientNetV2-S模型，性能更好"""
-    model = timm.create_model('efficientnetv2_s', pretrained=True)
+    try:
+        # 尝试加载预训练模型
+        model = timm.create_model('efficientnetv2_s', pretrained=True)
+        print("Successfully loaded pretrained efficientnetv2_s model")
+    except (RuntimeError, ValueError) as e:
+        # 如果加载失败，退回到随机初始化
+        print(f"Failed to load pretrained weights: {str(e)}")
+        print("Using randomly initialized efficientnetv2_s model instead")
+        model = timm.create_model('efficientnetv2_s', pretrained=False)
     
     # 使用渐进式解冻，冻结前部分层
     total_layers = len(list(model.named_parameters()))
