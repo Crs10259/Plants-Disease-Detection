@@ -265,19 +265,20 @@ def process_image(image_path, saved_path):
             print(f"OpenCV cannot read image: {image_path}")
             return False
 
+        data_augmentor = DataAugmentor(config)
         # 高斯噪声
-        gau_image = DataAugmentor.add_noise(cv_image)
+        gau_image = data_augmentor.add_noise(cv_image)
         if gau_image is not None:
             cv2.imwrite(os.path.join(saved_path, f"gau_{os.path.basename(image_path)}"), gau_image)
         
         # 随机改变亮度
-        light_image = DataAugmentor.change_brightness(cv_image)
+        light_image = data_augmentor.change_brightness(cv_image)
         if light_image is not None:
             cv2.imwrite(os.path.join(saved_path, f"light_{os.path.basename(image_path)}"), light_image)
             
         # 亮度调整后添加噪声
         if light_image is not None:
-            light_and_gau = DataAugmentor.add_noise(light_image)
+            light_and_gau = data_augmentor.add_noise(light_image)
             if light_and_gau is not None:
                 cv2.imwrite(os.path.join(saved_path, f"gau_light_{os.path.basename(image_path)}"), light_and_gau)
         

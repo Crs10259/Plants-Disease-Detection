@@ -5,7 +5,7 @@ from torch import nn
 from config import config
 import timm
 
-def generate_model():
+def get_densenet169():
     """生成DenseNet169模型"""
     class DenseModel(nn.Module):
         def __init__(self, pretrained_model):
@@ -227,7 +227,7 @@ def get_net():
     可以在此选择哪个模型用于训练
     """
     models = {
-        "densenet169": generate_model,
+        "densenet169": get_densenet169,
         "efficientnet_b4": get_efficientnet,
         "efficientnetv2_s": get_efficientnetv2,
         "convnext_small": get_convnext,

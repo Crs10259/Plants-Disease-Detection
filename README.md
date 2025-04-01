@@ -233,27 +233,6 @@ python train.py
 
 训练完成后，模型会自动对测试集进行预测，并将结果保存在 `./submit/baseline.json` 文件中。
 
-## 项目结构
-
-```bash
-.
-├── config.py # 配置文件
-├── train.py # 训练脚本
-├── data_aug.py # 数据增强脚本
-├── move.py # 数据移动脚本
-├── utils.py # 工具函数
-├── dataset/ # 数据集相关代码
-│ ├── init.py
-│ └── dataloader.py # 数据加载器
-├── models/ # 模型定义
-│ ├── init.py
-│ └── model.py # 模型架构
-├── checkpoints/ # 模型检查点
-│ └── best_model/ # 最佳模型存储
-├── logs/ # 训练日志
-└── submit/ # 预测结果
-```
-
 ### 5. 注意事项
 
 1. 数据预处理：

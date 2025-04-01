@@ -47,7 +47,7 @@ class DefaultConfigs(object):
     use_random_erasing: bool = True  # 使用随机擦除增强
     
     # 数据增强配置
-    use_data_aug: bool = False  # 启用数据增强
+    use_data_aug: bool = True  # 启用数据增强
     aug_noise: bool = True      # 是否添加噪声
     aug_brightness: bool = True  # 是否调整亮度
     aug_flip: bool = True       # 是否进行翻转
