@@ -19,6 +19,7 @@ from utils import *
 from tqdm import tqdm
 from torch.cuda.amp import autocast, GradScaler
 from data_aug import DataAugmentor
+from data_aug import main as data_aug_main
 import timm.utils
 
 def setup_environment():
@@ -188,7 +189,6 @@ def train_epoch(model, train_dataloader, criterion, optimizer, epoch, log, devic
                 log.write(f"Error in training iteration {iter}: {str(e)}\n")
             continue
             
-    # 如果有错误文件，打印信息
     if error_files:
         log.write(f"Found {len(error_files)} problematic files in this epoch.\n")
     
@@ -288,11 +288,12 @@ def load_checkpoint(model, optimizer, device):
         model_name = checkpoint.get("model_name", "")
         
         # 根据不同模型类型处理状态字典
-        if "resnet" in model_name:
-            # 处理ResNet状态字典
-            model_state_dict = {k.replace('fc.weight', 'fc.0.weight').replace('fc.bias', 'fc.0.bias'): v 
-                                for k, v in checkpoint['state_dict'].items()}
-        elif "efficientnet" in model_name:
+        # if "resnet" in model_name:
+        #     # 处理ResNet状态字典
+        #     model_state_dict = {k.replace('fc.weight', 'fc.0.weight').replace('fc.bias', 'fc.0.bias'): v 
+        #                         for k, v in checkpoint['state_dict'].items()}
+
+        if "efficientnet" in model_name:
             # 处理EfficientNet状态字典（无需转换）
             model_state_dict = checkpoint['state_dict']
         elif "convnext" in model_name:
@@ -377,10 +378,9 @@ def main():
     
     # 数据加载
     log.write("Loading dataset...\n")
-    train_data = get_files(config.train_data, "train")
     
     # 如果启用了数据增强，进行增强并获取增强后的文件列表
-    if config.use_data_aug:
+    if config.use_data_aug and config.use_mode == 'merge':
         log.write("Starting data augmentation...\n")
         augmented_files = augmentor.augment_directory()
           
@@ -390,10 +390,18 @@ def main():
                 "filename": augmented_files,
                 "label": [int(os.path.basename(os.path.dirname(f))) for f in augmented_files]
             })
+            train_data = get_files(config.train_data, "train")
             train_data = pd.concat([train_data, aug_data], ignore_index=True)
             log.write(f"Added {len(augmented_files)} augmented images to training set\n")
-    
-    # 继续原有的训练流程
+
+    elif config.use_data_aug and config.use_mode == 'replace':
+        if data_aug_main():
+            log.write("Data augmentation completed\n")
+            train_data = get_files(config.aug_target_path, "train")
+        else:
+            log.write("Data augmentation failed, stop augmenting.\n")
+            return
+
     train_data_list, val_data_list = train_test_split(train_data, test_size=0.15, stratify=train_data["label"])
     log.write(f"Training set size: {len(train_data_list)}, Validation set size: {len(val_data_list)}\n")
     
@@ -407,7 +415,7 @@ def main():
         collate_fn=collate_fn,
         num_workers=config.num_workers,
         pin_memory=True if device.type == 'cuda' else False,
-        drop_last=True  # 丢弃最后不完整的批次，确保批归一化正常工作
+        drop_last=True  
     )
     
     val_dataloader = DataLoader(

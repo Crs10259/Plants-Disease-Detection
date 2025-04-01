@@ -336,70 +336,75 @@ def process_data_with_naming_issues(renamed_files):
 
 def main():
     """主函数，处理所有类别的图像"""
-    
-    # 创建输出目录
-    for i in range(59):
-        os.makedirs(os.path.join(config.aug_target_path, str(i)), exist_ok=True)
-    
-    # 处理每个类别的图片
-    total_processed = 0
-    total_skipped = 0
-    renamed_files = []  # 存储所有命名有问题的文件路径
-    
-    for class_idx in range(59):
-        class_dir = str(class_idx)
-        raw_dir = os.path.join(config.aug_source_path, class_dir)
-        save_dir = os.path.join(config.aug_target_path, class_dir)
+    try:
+        # 创建输出目录
+        for i in range(59):
+            os.makedirs(os.path.join(config.aug_target_path, str(i)), exist_ok=True)
         
-        if not os.path.exists(raw_dir):
-            print(f"Directory not found: {raw_dir}")
-            continue
+        # 处理每个类别的图片
+        total_processed = 0
+        total_skipped = 0
+        renamed_files = []  # 存储所有命名有问题的文件路径
+        
+        for class_idx in range(59):
+            class_dir = str(class_idx)
+            raw_dir = os.path.join(config.aug_source_path, class_dir)
+            save_dir = os.path.join(config.aug_target_path, class_dir)
             
-        # 获取该类别下所有图片
-        image_files = [f for f in os.listdir(raw_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
-        
-        print(f"\nProcessing class {class_idx} ({len(image_files)} images)")
-        processed = 0
-        skipped = 0
-        
-        # 使用多线程处理图像
-        with ThreadPoolExecutor(max_workers=config.aug_num_workers) as executor:
-            # 准备要处理的图像路径列表
-            process_list = []
-            for image_file in image_files:
-                image_path = os.path.join(raw_dir, image_file)
+            if not os.path.exists(raw_dir):
+                print(f"Directory not found: {raw_dir}")
+                continue
                 
-                if is_chinese(image_file):
-                    renamed_files.append(image_path)  # 记录含有中文字符的文件路径
-                    continue
-                
-                if check_augmented_images_exist(image_path, save_dir):
-                    skipped += 1
-                    continue
-                    
-                process_list.append((image_path, save_dir))
+            # 获取该类别下所有图片
+            image_files = [f for f in os.listdir(raw_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+            
+            print(f"\nProcessing class {class_idx} ({len(image_files)} images)")
+            processed = 0
+            skipped = 0
             
             # 使用多线程处理图像
-            results = list(tqdm(
-                executor.map(lambda p: process_image(*p), process_list),
-                total=len(process_list),
-                desc=f"Class {class_idx}"
-            ))
-            
-            # 统计处理结果
-            processed = sum(1 for r in results if r)
+            with ThreadPoolExecutor(max_workers=config.aug_num_workers) as executor:
+                # 准备要处理的图像路径列表
+                process_list = []
+                for image_file in image_files:
+                    image_path = os.path.join(raw_dir, image_file)
+                    
+                    if is_chinese(image_file):
+                        renamed_files.append(image_path)  # 记录含有中文字符的文件路径
+                        continue
+                    
+                    if check_augmented_images_exist(image_path, save_dir):
+                        skipped += 1
+                        continue
+                        
+                    process_list.append((image_path, save_dir))
                 
-        total_processed += processed
-        total_skipped += skipped
-        print(f"Class {class_idx}: Processed {processed} images, skipped {skipped} images.")
+                # 使用多线程处理图像
+                results = list(tqdm(
+                    executor.map(lambda p: process_image(*p), process_list),
+                    total=len(process_list),
+                    desc=f"Class {class_idx}"
+                ))
+                
+                # 统计处理结果
+                processed = sum(1 for r in results if r)
+                    
+            total_processed += processed
+            total_skipped += skipped
+            print(f"Class {class_idx}: Processed {processed} images, skipped {skipped} images.")
+        
+        print(f"\nTotal: Processed {total_processed} images, skipped {total_skipped} images.")
+        
+        # 处理命名有问题的文件
+        if renamed_files:
+            print(f"Found {len(renamed_files)} files with naming issues.")
+            process_data_with_naming_issues(renamed_files)
+            return True
+        
+    except Exception as e:
+        print(f"Error in main: {str(e)}")
+        return False
     
-    print(f"\nTotal: Processed {total_processed} images, skipped {total_skipped} images.")
-    
-    # 处理命名有问题的文件
-    if renamed_files:
-        print(f"Found {len(renamed_files)} files with naming issues.")
-        process_data_with_naming_issues(renamed_files)
-
 if __name__ == "__main__":
     main()
 

@@ -2,7 +2,8 @@ class DefaultConfigs(object):
     # 1.字符串参数
     train_data: str = "./data/train/"
     test_data: str = "./data/test/images/"
-    val_data: str = "no"
+    val_data: str = "none"
+    test_data: str = "none"
     model_name: str = "efficientnet_b4"  # 更新为性能更好且有预训练权重的模型
     weights: str = "./checkpoints/"
     best_models: str = weights + "best_model/"
@@ -47,7 +48,8 @@ class DefaultConfigs(object):
     use_random_erasing: bool = True  # 使用随机擦除增强
     
     # 数据增强配置
-    use_data_aug: bool = True  # 启用数据增强
+    use_data_aug: bool = False  # 启用数据增强
+    use_mode: str = 'merge'  # 'merge', 'replace'
     aug_noise: bool = True      # 是否添加噪声
     aug_brightness: bool = True  # 是否调整亮度
     aug_flip: bool = True       # 是否进行翻转
