@@ -91,7 +91,7 @@ def get_optimizer(model, name='adamw'):
     elif name == 'ranger':
         # Ranger优化器（RAdam + Lookahead）
         try:
-            from ranger import Ranger  # 需要先安装ranger-adabelief库
+            from ranger_adabelief import Ranger  # 需要先安装ranger-adabelief库
             optimizer = Ranger(
                 model.parameters(), 
                 lr=config.lr, 

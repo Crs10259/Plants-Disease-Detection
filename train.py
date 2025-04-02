@@ -59,7 +59,13 @@ def get_device():
 
 def create_directories():
     """创建必要的检查点和日志目录"""
-    directories = [config.submit, config.weights, config.best_models, config.logs]
+    directories = [
+        config.submit, 
+        config.weights, 
+        config.best_models, 
+        config.logs,
+        config.test_data  # Add test data directory
+    ]
     for directory in directories:
         os.makedirs(directory, exist_ok=True)
         # 为每个模型创建特定文件夹
@@ -401,6 +407,17 @@ def main():
         else:
             log.write("Data augmentation failed, stop augmenting.\n")
             return
+    else:
+        train_data = get_files(config.train_data, "train")
+        
+    # Check if train_data is empty or None
+    if train_data is None or train_data.empty:
+        print("Error: Training data could not be loaded. Please check the data path and format.")
+        return  # Exit the function if data loading fails
+
+    print("Loading training data...")
+    train_data = get_files(config.train_data, "train")
+    print(f"Loaded training data: {train_data.head()}")
 
     train_data_list, val_data_list = train_test_split(train_data, test_size=0.15, stratify=train_data["label"])
     log.write(f"Training set size: {len(train_data_list)}, Validation set size: {len(val_data_list)}\n")

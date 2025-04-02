@@ -3,7 +3,6 @@ class DefaultConfigs(object):
     train_data: str = "./data/train/"
     test_data: str = "./data/test/images/"
     val_data: str = "none"
-    test_data: str = "none"
     model_name: str = "efficientnet_b4"  # 更新为性能更好且有预训练权重的模型
     weights: str = "./checkpoints/"
     best_models: str = weights + "best_model/"

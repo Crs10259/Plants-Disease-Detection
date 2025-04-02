@@ -184,6 +184,9 @@ def get_files(root, mode):
     返回:
         包含文件路径和标签的DataFrame
     """
+    if not os.path.exists(root):
+        raise FileNotFoundError(f"Directory not found: {root}")
+    
     if mode == "test":
         files = [os.path.join(root, img) for img in os.listdir(root)]
         return pd.DataFrame({"filename": files})
