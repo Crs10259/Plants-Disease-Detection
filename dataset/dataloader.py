@@ -8,9 +8,10 @@ from glob import glob
 from tqdm import tqdm
 from torch.utils.data import Dataset
 from torchvision import transforms as T 
-from config import config
+from config.config import config, paths
 from PIL import Image 
 from concurrent.futures import ThreadPoolExecutor
+from utils.utils import handle_datasets
 
 # 设置随机种子
 random.seed(config.seed)
@@ -184,25 +185,32 @@ def get_files(root, mode):
     返回:
         包含文件路径和标签的DataFrame
     """
-    if not os.path.exists(root):
-        raise FileNotFoundError(f"Directory not found: {root}")
+    # 处理多数据集情况，获取实际使用的数据集路径
+    actual_root = handle_datasets(mode)
+    
+    if not os.path.exists(actual_root):
+        raise FileNotFoundError(f"Directory not found: {actual_root}")
+    
+    print(f"Loading {mode} dataset from: {actual_root}")
     
     if mode == "test":
-        files = [os.path.join(root, img) for img in os.listdir(root)]
+        files = [os.path.join(actual_root, img) for img in os.listdir(actual_root) 
+                if img.endswith(('.jpg', '.JPG', '.png', '.PNG'))]
         return pd.DataFrame({"filename": files})
         
     elif mode == "train":
         all_data_path, labels = [], []
-        image_folders = [os.path.join(root, x) for x in os.listdir(root)]
+        image_folders = [os.path.join(actual_root, x) for x in os.listdir(actual_root) 
+                        if os.path.isdir(os.path.join(actual_root, x))]
         
-        # 获取所有jpg图像路径
-        jpg_patterns = ['/*.jpg', '/*.JPG']
+        # 获取所有jpg和png图像路径
+        image_patterns = ['/*.jpg', '/*.JPG', '/*.png', '/*.PNG']
         all_images = []
         for folder in image_folders:
-            for pattern in jpg_patterns:
+            for pattern in image_patterns:
                 all_images.extend(glob(folder + pattern))
                 
-        print("Loading training dataset")
+        print(f"Loading training dataset ({len(all_images)} images)")
         for file in tqdm(all_images):
             all_data_path.append(file)
             # 从路径中提取标签

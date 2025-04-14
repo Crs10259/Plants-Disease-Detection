@@ -86,7 +86,6 @@ temp/
 
 # 取消忽略特定文件
 !data/.gitkeep
-!checkpoints/.gitkeep
 !logs/.gitkeep
 !submit/.gitkeep
 !aug/.gitkeep 

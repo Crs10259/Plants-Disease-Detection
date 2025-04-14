@@ -1,267 +1,188 @@
-# 植物病害检测系统
+# Plant Disease Detection System
 
-## 项目概述
+A comprehensive system for plant disease detection using deep learning. This project provides an end-to-end pipeline for preparing data, training models, and running inference for plant disease classification.
 
-本项目是一个基于深度学习的植物疾病检测系统，能够识别多达59种不同的植物病害。系统利用最新的深度学习技术（EfficientNet-B4）进行训练，可以用于农业病害的快速识别和诊断。
+## Project Structure
 
-## 功能特点
-
-- 支持59种不同植物疾病的分类
-- 使用先进的EfficientNet-B4深度学习模型
-- 实现了混合精度训练，提高训练速度
-- 包含丰富的数据增强方法，提高模型鲁棒性
-- 支持早停策略，防止过拟合
-- 提供详细的训练日志和性能指标
-
-## 环境要求
-
-- Python 3.7+
-- PyTorch 1.8+
-- CUDA (推荐用于GPU加速)
-- 主要依赖：
-  - numpy
-  - pandas
-  - scikit-learn
-  - PIL
-  - opencv-python
-  - tqdm
-  - skimage
-
-## 安装说明
-
-1. 克隆代码库
-
-```bash
-git clone https://github.com/yourusername/Plant-Disease-Detection.git
-cd Plant-Disease-Detection
+```
+├── config/                  # Configuration module
+│   ├── __init__.py
+│   ├── config.py            # Configuration settings
+├── utils/                   # Utility functions
+│   ├── __init__.py
+│   ├── utils.py
+├── dataset/                 # Dataset package
+│   ├── __init__.py          # Dataset package definitions
+│   ├── dataloader.py        # Data loading utilities
+│   ├── data_prep.py         # Data preparation utilities
+├── models/                  # Model definitions
+│   ├── __init__.py
+│   ├── model.py             # Model architecture definitions
+├── libs/                    # Core functionality
+│   ├── __init__.py
+│   ├── training.py          # Training functionality
+│   ├── inference.py         # Inference functionality
+├── main.py                  # Main entry point
+├── requirements.txt         # Dependencies
 ```
 
-2. 安装依赖
+## Dataset
 
+This project uses the Agricultural Disease dataset from the AI Challenger competition. 
+
+**Dataset Source**: [https://github.com/spytensor/plants_disease_detection](https://github.com/spytensor/plants_disease_detection)
+
+The dataset contains images of various plant diseases across different plant species, organized by disease class. The data preparation module in this project handles the extraction, processing, and augmentation of this dataset automatically.
+
+## Installation
+
+1. Clone the repository:
+```bash
+git clone https://github.com/Crs10259/Plants-Disease-Detection.git
+cd Plants-Disease-Detection
+```
+
+2. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-## 数据集准备
+## Usage
 
-
-## 使用说明
-
-### 1. 数据准备
-
-将原始数据整理到项目的数据目录结构中：
+The system provides a unified command-line interface through `main.py` that can run the entire pipeline automatically:
 
 ```bash
-python move.py
+# Run the entire pipeline (data preparation, training, and inference)
+python main.py
 ```
 
-### 2. 数据增强（可选）
+For more control, you can use the specific commands:
 
-通过数据增强扩充训练集：
+### Data Preparation
+
+Prepare datasets for training and testing:
 
 ```bash
-python data_aug.py
+# Perform all data preparation steps (default behavior)
+python main.py prepare
+
+# Extract datasets from archives only
+python main.py prepare --extract
+
+# Process extracted data into training directory only
+python main.py prepare --process
+
+# Perform data augmentation only
+python main.py prepare --augment
 ```
 
-### 3. 训练模型
+### Training
 
-使用以下命令开始训练：
+Train a model with various options:
 
 ```bash
-python train.py
+# Train with default settings (includes data preparation)
+python main.py train
+
+# Train with specific model
+python main.py train --model efficientnetv2_s
+
+# Train with specific epochs and batch size
+python main.py train --epochs 50 --batch-size 32
+
+# Train without running data preparation
+python main.py train --no-prepare
 ```
 
-您可以在`config.py`中调整训练参数，包括：
+### Inference
 
-- 学习率
-- 批量大小
-- 训练轮数
-- 图像尺寸
-- 早停策略
-- 模型选择（EfficientNet/ConvNeXt）
-
-### 4. 模型预测
-
-模型训练完成后，会自动对测试集进行预测，并将结果保存在`./submit/baseline.json`文件中。
-
-## 深度学习模型
-
-本项目使用了两种先进的深度学习模型：
-
-1. **EfficientNet-B4** (默认)：Google开发的高效网络，平衡了准确度和计算效率。
-2. **ConvNeXt**：更现代的卷积神经网络架构，可与Transformer相媲美的性能。
-
-您可以在`models/model.py`的`get_net()`函数中选择使用哪个模型。
-
-## 性能优化
-
-- **混合精度训练**：通过使用FP16和FP32混合精度，加速训练过程
-- **多线程数据加载**：提高数据加载效率
-- **参数冻结**：仅微调模型的高层特征，减少过拟合风险
-- **早停策略**：当验证损失连续多轮未改善时自动停止训练
-
-## 故障排除
-
-1. **显存不足**：
-   - 减小批量大小
-   - 降低图像分辨率
-   - 使用较小的模型
-   
-2. **训练速度慢**：
-   - 确保启用了混合精度训练
-   - 增加数据加载器的`num_workers`
-   - 确保使用GPU训练
-
-3. **无法读取某些图像**：
-   - 检查图像格式是否支持
-   - 确保图像路径中没有中文字符
-   - 查看日志文件了解详细错误信息
-
-## 许可证
-
-1. 将训练数据放在 `./data/train/` 目录下，每个类别有一个子目录
-2. 将测试数据放在 `./data/test/images/` 目录下
-
-可以使用 `move.py` 脚本来帮助组织数据集:
-```bash
-python move.py
-```
-
-如需进行数据增强:
-```bash
-python data_aug.py
-```
-
-## 训练模型
-
-使用以下命令开始训练:
-```bash
-python train.py
-```
-
-可以在 `config.py` 中调整训练参数，包括:
-- 学习率
-- 批次大小
-- 训练轮数
-- 图像尺寸
-- 设备选择 (CPU/GPU)
-
-## 预测
-
-训练完成后，模型会自动对测试集进行预测，并将结果保存在 `./submit/baseline.json` 文件中。
-
-## 项目结构
+Run inference on images:
 
 ```bash
-.
-├── config.py # 配置文件
-├── train.py # 训练脚本
-├── data_aug.py # 数据增强脚本
-├── move.py # 数据移动脚本
-├── utils.py # 工具函数
-├── dataset/ # 数据集相关代码
-│ ├── init.py
-│ └── dataloader.py # 数据加载器
-├── models/ # 模型定义
-│ ├── init.py
-│ └── model.py # 模型架构
-├── checkpoints/ # 模型检查点
-│ └── best_model/ # 最佳模型存储
-├── logs/ # 训练日志
-└── submit/ # 预测结果
+# Run inference on a directory of images
+python main.py predict --model weights/best/efficientnetv2_s/0/model_best.pth --input data/test/images
+
+# Run inference on a single image
+python main.py predict --model weights/best/efficientnetv2_s/0/model_best.pth --input data/test/images/sample.jpg
+
+# Specify custom output path
+python main.py predict --model weights/best/efficientnetv2_s/0/model_best.pth --input data/test/images --output results.json
 ```
 
-### 5. 注意事项
+## Key Features
 
-1. 数据预处理：
-   - 由于现在不支持中文的一些符号。数据增强时，保证数据集里不要有中文命名的文件，否则将跳过它。
+### Automatic Data Merging
 
-2. GPU 训练：
-   - 确保已安装 CUDA 和对应版本的 PyTorch
-   - 可在 config.py 中设置 GPU 相关参数
+The system now automatically merges multiple datasets by default, making it easier to train on combined data sources.
 
-3. CPU 训练：
-   - 无需特殊配置，程序会自动使用 CPU
-   - 训练速度会较 GPU 慢
+### Enhanced Data Preparation
 
-4. 内存使用：
-   - 根据实际内存大小调整 batch_size
-   - CPU 训练时建议适当减小 batch_size
-   
-## 性能指标
+The data preparation module has been enhanced to:
+- Automatically extract datasets
+- Process images to the correct format
+- Remove invalid or corrupted images
+- Perform data augmentation to increase training data
 
-- 当前最佳模型Top-2准确率: 88.67%
+### Streamlined Training
 
-### 6. 联系方式
+The training process is now more efficient with:
+- Automatic data preparation before training
+- Improved model checkpointing
+- Memory tracking and optimization
+- Various data augmentation techniques during training
 
-如果有任何问题或建议，欢迎联系：
-- Email: 961521953@qq.com
+## Supported Models
 
-### 7. 许可
+The system supports multiple model architectures:
+
+- DenseNet169
+- EfficientNet-B4
+- EfficientNetV2-S (default)
+- ConvNeXt Small
+- Swin Transformer
+- Hybrid Model (CNN+Transformer)
+- Ensemble Model
+
+## Configuration
+
+The system is highly configurable via `config/config.py`. Key configuration options include:
+
+- Data paths
+- Training parameters (learning rate, batch size, etc.)
+- Data augmentation settings
+- Model selection
+- Optimization settings
+
+Data merging and augmentation are now enabled by default.
+
+## Data Augmentation
+
+The system supports various data augmentation techniques:
+
+- Gaussian noise
+- Brightness adjustment
+- Image flipping
+- Contrast enhancement
+- Advanced augmentations via Albumentations
+
+Data augmentation is enabled by default to improve model performance.
+
+## Requirements
+
+- Python 3.7+
+- PyTorch 1.12.0+
+- torchvision 0.13.0+
+- timm 0.6.12+
+- OpenCV
+- albumentations
+- scikit-image
+- Pillow
+- tqdm
+- numpy
+- pandas
+
+For a complete list of dependencies, see `requirements.txt`.
+
+## License
+
 [GNU General Public License v3.0](LICENSE)
-
-## 联系方式
-
-1. 将训练数据放在 `./data/train/` 目录下，每个类别有一个子目录
-2. 将测试数据放在 `./data/test/images/` 目录下
-
-可以使用 `move.py` 脚本来帮助组织数据集:
-```bash
-python move.py
-```
-
-如需进行数据增强:
-```bash
-python data_aug.py
-```
-
-## 训练模型
-
-使用以下命令开始训练:
-```bash
-python train.py
-```
-
-可以在 `config.py` 中调整训练参数，包括:
-- 学习率
-- 批次大小
-- 训练轮数
-- 图像尺寸
-- 设备选择 (CPU/GPU)
-
-## 预测
-
-训练完成后，模型会自动对测试集进行预测，并将结果保存在 `./submit/baseline.json` 文件中。
-
-### 5. 注意事项
-
-1. 数据预处理：
-   - 由于现在不支持中文的一些符号。数据增强时，保证数据集里不要有中文命名的文件，否则将跳过它。
-
-2. GPU 训练：
-   - 确保已安装 CUDA 和对应版本的 PyTorch
-   - 可在 config.py 中设置 GPU 相关参数
-
-3. CPU 训练：
-   - 无需特殊配置，程序会自动使用 CPU
-   - 训练速度会较 GPU 慢
-
-4. 内存使用：
-   - 根据实际内存大小调整 batch_size
-   - CPU 训练时建议适当减小 batch_size
-   
-## 性能指标
-
-- 当前最佳模型Top-2准确率: 88.67%
-
-### 6. 联系方式
-
-如果有任何问题或建议，欢迎联系：
-- Email: 961521953@qq.com
-
-### 7. 许可
-[GNU General Public License v3.0](LICENSE)
-
-## Author 作者
-
-Created by Chen Runsen 

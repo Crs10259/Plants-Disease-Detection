@@ -2,7 +2,7 @@ import torch
 import torchvision
 import torch.nn.functional as F 
 from torch import nn
-from config import config
+from config.config import config
 import timm
 
 def get_densenet169():
