@@ -42,12 +42,12 @@ def save_checkpoint(state: Dict[str, Any], is_best: bool, fold: int) -> None:
         fold: 折叠编号
     """
     os.makedirs(os.path.join(config.weights, config.model_name, str(fold)), exist_ok=True)
-    os.makedirs(os.path.join(config.best_models, config.model_name, str(fold)), exist_ok=True)
+    os.makedirs(os.path.join(config.best_weights, config.model_name, str(fold)), exist_ok=True)
     
     filename = os.path.join(config.weights, config.model_name, str(fold), "_checkpoint.pth.tar")
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, os.path.join(config.best_models, config.model_name, str(fold), 'model_best.pth.tar'))
+        shutil.copyfile(filename, os.path.join(config.best_weights, config.model_name, str(fold), 'model_best.pth.tar'))
         logger.info(f"Saved best model checkpoint to {filename}")
 
 class AverageMeter:

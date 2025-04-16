@@ -80,7 +80,7 @@ class DefaultConfigs:
     val_data: str = "none"  # 验证数据路径
     model_name: str = "efficientnet_b4"  # 模型名称
     weights: str = field(default="")  # 权重保存路径
-    best_models: str = field(default="")  # 最佳模型保存路径
+    best_weights: str = field(default="")  # 最佳模型保存路径
     submit: str = field(default="")  # 提交结果保存路径
     logs: str = field(default="")  # 日志保存路径
     
@@ -173,7 +173,7 @@ class DefaultConfigs:
         self.train_data = self.paths.train_dir
         self.test_data = self.paths.test_images_dir
         self.weights = self.paths.weights_dir
-        self.best_models = self.paths.best_weights_dir
+        self.best_weights = self.paths.best_weights_dir
         self.submit = self.paths.submit_dir
         self.logs = self.paths.logs_dir
         self.aug_source_path = self.paths.train_dir

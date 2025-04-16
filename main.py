@@ -138,7 +138,7 @@ def train_pipeline(args) -> Dict[str, Any]:
     # Check if we need to train or continue training the model
     model_needs_training = True
     checkpoint_path = os.path.join(paths.weights_dir, config.model_name, "0", "_checkpoint.pth.tar")
-    best_model_path = os.path.join(paths.best_models, config.model_name, "0", "model_best.pth.tar")
+    best_model_path = os.path.join(paths.best_weights_dir, config.model_name, "0", "model_best.pth.tar")
     
     if os.path.exists(checkpoint_path) or os.path.exists(best_model_path):
         model_path = best_model_path if os.path.exists(best_model_path) else checkpoint_path
@@ -227,7 +227,7 @@ def main():
         # Check if we need to train or continue training
         model_needs_training = True
         checkpoint_path = os.path.join(paths.weights_dir, config.model_name, "0", "_checkpoint.pth.tar")
-        best_model_path = os.path.join(paths.best_models, config.model_name, "0", "model_best.pth.tar")
+        best_model_path = os.path.join(paths.best_weights_dir, config.model_name, "0", "model_best.pth.tar")
         
         if os.path.exists(checkpoint_path) or os.path.exists(best_model_path):
             model_path = best_model_path if os.path.exists(best_model_path) else checkpoint_path

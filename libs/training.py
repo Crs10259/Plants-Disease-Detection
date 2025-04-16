@@ -100,13 +100,13 @@ class Trainer:
         directories = [
             self.config.submit, 
             self.config.weights, 
-            self.config.best_models, 
+            self.config.best_weights, 
             self.config.logs,
             self.config.test_data
         ]
         for directory in directories:
             os.makedirs(directory, exist_ok=True)
-            if directory in [self.config.best_models, self.config.weights]:
+            if directory in [self.config.best_weights, self.config.weights]:
                 os.makedirs(os.path.join(directory, self.config.model_name, "0"), exist_ok=True)
 
     def train_epoch(self, model: nn.Module, train_dataloader: DataLoader, 
@@ -298,7 +298,7 @@ class Trainer:
         start_epoch = 0
         best_acc = 0.0
         checkpoint_path = os.path.join(self.config.weights, self.config.model_name, "0", "_checkpoint.pth.tar")
-        best_model_path = os.path.join(self.config.best_models, self.config.model_name, "0", "model_best.pth.tar")
+        best_model_path = os.path.join(self.config.best_weights, self.config.model_name, "0", "model_best.pth.tar")
         
         if os.path.exists(checkpoint_path) or os.path.exists(best_model_path):
             model_path = best_model_path if os.path.exists(best_model_path) else checkpoint_path
