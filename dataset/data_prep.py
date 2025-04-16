@@ -210,7 +210,9 @@ class DataPreparation:
         data_dir = self.paths.data_dir
         train_zip = os.path.join(data_dir, "ai_challenger_pdr2018_trainingset_20181023.zip")
         val_zip = os.path.join(data_dir, "ai_challenger_pdr2018_validationset_20181023.zip")
-        test_zip = os.path.join(data_dir, "ai_challenger_pdr2018_testb_20181023.zip")
+        
+        # 查找所有测试集ZIP文件
+        test_zips = glob.glob(os.path.join(data_dir, "ai_challenger_pdr2018_test*.zip"))
         
         # 检查并解压训练集
         if os.path.exists(train_zip):
@@ -248,17 +250,41 @@ class DataPreparation:
         else:
             logger.warning(f"Validation dataset zip not found: {val_zip}")
         
-        # 检查并解压测试集
-        if os.path.exists(test_zip):
-            self.extract_zip_file(test_zip, data_dir)
-            test_dir = os.path.join(data_dir, "AgriculturalDisease_testB")
+        # 检查并解压所有测试集
+        if test_zips:
+            logger.info(f"Found {len(test_zips)} test dataset zip files")
             
-            # 复制测试图片到测试目录
-            images_dir = os.path.join(test_dir, "images")
-            if os.path.exists(images_dir):
-                self.copy_files_to_folder(images_dir, self.paths.test_images_dir, "*.jpg")
+            for test_zip in test_zips:
+                # 创建文件名的唯一目录名称
+                zip_basename = os.path.basename(test_zip)
+                test_dir_suffix = zip_basename.split('_')[3].split('.')[0]  # 从文件名提取 testa 或 testb 部分
+                extracted_dir = os.path.join(data_dir, f"AgriculturalDisease_{test_dir_suffix}")
+                
+                # 解压测试集
+                self.extract_zip_file(test_zip, data_dir)
+                
+                # 为每个测试集创建单独的目录
+                test_specific_dir = os.path.join(self.paths.test_dir, test_dir_suffix)
+                os.makedirs(test_specific_dir, exist_ok=True)
+                
+                # 复制测试图片到对应的测试目录
+                images_dir = os.path.join(extracted_dir, "images")
+                if os.path.exists(images_dir):
+                    self.copy_files_to_folder(images_dir, test_specific_dir, "*.jpg")
+                    
+                    # 同时复制到通用测试目录，以保持向后兼容性
+                    if self.config.duplicate_test_to_common:
+                        self.copy_files_to_folder(images_dir, self.paths.test_images_dir, "*.jpg")
+            
+            # 准备合并测试集，如果配置中启用
+            if self.config.merge_datasets:
+                logger.info("Merging test datasets as per configuration")
+                self.merge_datasets(mode="test", force=True)
         else:
-            logger.warning(f"Test dataset zip not found: {test_zip}")
+            logger.warning(f"No test dataset zip files found in {data_dir}")
+            
+        # 确保测试目录存在
+        os.makedirs(self.paths.test_images_dir, exist_ok=True)
 
     def process_data(self) -> None:
         """处理数据集文件并组织到训练目录"""
@@ -328,62 +354,190 @@ class DataPreparation:
         logger.info(f"\nSuccessfully processed {success_count}/{len(file_list)} files")
 
     def get_data_status(self) -> Dict[str, Any]:
-        """检查数据准备状态并返回状态字典
+        """获取数据准备状态
         
         返回:
-            包含状态信息的字典
+            包含数据准备状态信息的字典
         """
-        # 检查必要的目录和文件
-        train_dir = self.paths.train_dir
-        test_dir = self.paths.test_images_dir
-        temp_images = self.paths.temp_images_dir
-        temp_labels = self.paths.temp_labels_dir
+        # 检查所需目录是否存在
+        train_dir_exists = os.path.exists(self.paths.train_dir)
+        test_dir_exists = os.path.exists(self.paths.test_dir)
+        temp_images_dir_exists = os.path.exists(self.paths.temp_images_dir)
+        temp_labels_dir_exists = os.path.exists(self.paths.temp_labels_dir)
+        aug_dir_exists = os.path.exists(self.paths.aug_dir)
+        merged_train_dir_exists = os.path.exists(self.paths.merged_train_dir)
+        merged_test_dir_exists = os.path.exists(self.paths.merged_test_dir)
+        merged_val_dir_exists = os.path.exists(self.paths.merged_val_dir)
         
-        status = {
-            "training_dir": os.path.exists(train_dir),
-            "test_dir": os.path.exists(test_dir),
-            "temp_images_dir": os.path.exists(temp_images),
-            "temp_labels_dir": os.path.exists(temp_labels),
-            "train_annotations": os.path.exists(self.paths.train_annotations),
-            "val_annotations": os.path.exists(self.paths.val_annotations)
+        # 检查重要文件是否存在
+        train_annotations_exists = os.path.exists(self.paths.train_annotations)
+        val_annotations_exists = os.path.exists(self.paths.val_annotations)
+        
+        # 检查ZIP文件
+        zip_details = {}
+        zip_files = glob.glob(os.path.join(self.paths.data_dir, "*.zip"))
+        dataset_extracted = True
+        for zip_file in zip_files:
+            zip_name = os.path.basename(zip_file)
+            # 判断是否已解压
+            if "train" in zip_name and not train_dir_exists:
+                zip_details[zip_file] = False
+                dataset_extracted = False
+            elif "test" in zip_name and not test_dir_exists:
+                zip_details[zip_file] = False
+                dataset_extracted = False
+            elif "val" in zip_name and not os.path.exists(self.paths.val_dir):
+                zip_details[zip_file] = False
+                dataset_extracted = False
+            else:
+                zip_details[zip_file] = True
+        
+        # 计算训练集类别数量和测试集图像数量
+        training_class_count = 0
+        test_image_count = 0
+        augmented_image_count = 0
+        merged_train_class_count = 0
+        merged_test_image_count = 0
+        
+        if train_dir_exists:
+            training_class_count = len([d for d in os.listdir(self.paths.train_dir) 
+                                       if os.path.isdir(os.path.join(self.paths.train_dir, d))])
+        
+        if test_dir_exists:
+            test_patterns = ["*.jpg", "*.JPG", "*.png", "*.PNG"]
+            for pattern in test_patterns:
+                test_image_count += len(glob.glob(os.path.join(self.paths.test_images_dir, pattern)))
+        
+        if aug_dir_exists:
+            aug_patterns = ["*.jpg", "*.JPG", "*.png", "*.PNG"]
+            for pattern in aug_patterns:
+                augmented_image_count += len(glob.glob(os.path.join(self.paths.aug_train_dir, "**", pattern), recursive=True))
+        
+        # 计算合并后的数据集信息
+        if merged_train_dir_exists:
+            merged_train_class_count = len([d for d in os.listdir(self.paths.merged_train_dir) 
+                                           if os.path.isdir(os.path.join(self.paths.merged_train_dir, d))])
+        
+        if merged_test_dir_exists:
+            test_patterns = ["*.jpg", "*.JPG", "*.png", "*.PNG"]
+            for pattern in test_patterns:
+                merged_test_image_count += len(glob.glob(os.path.join(self.paths.merged_test_dir, pattern)))
+        
+        # 数据处理状态细节
+        processed_details = {
+            "train": train_dir_exists and training_class_count > 0,
+            "test": test_dir_exists and test_image_count > 0,
+            "annotations": train_annotations_exists and val_annotations_exists
         }
         
-        # 检查训练类别目录
-        if status["training_dir"]:
-            class_dirs = [d for d in os.listdir(train_dir) if os.path.isdir(os.path.join(train_dir, d))]
-            status["training_class_count"] = len(class_dirs)
-        else:
-            status["training_class_count"] = 0
+        # 合并数据集状态
+        merged_details = {
+            "train": merged_train_dir_exists and merged_train_class_count > 0,
+            "test": merged_test_dir_exists and merged_test_image_count > 0,
+            "val": merged_val_dir_exists
+        }
         
-        # 检查文件数量
-        if status["test_dir"]:
-            status["test_image_count"] = len([f for f in os.listdir(test_dir) if f.endswith(('.jpg', '.jpeg', '.png'))])
-        else:
-            status["test_image_count"] = 0
+        # 综合处理状态
+        data_processed = all(processed_details.values())
         
-        if status["temp_images_dir"]:
-            status["temp_image_count"] = len([f for f in os.listdir(temp_images) if f.endswith(('.jpg', '.jpeg', '.png'))])
-        else:
-            status["temp_image_count"] = 0
-            
-        return status
+        # 数据增强状态
+        augmentation_completed = aug_dir_exists and augmented_image_count > 0
+        
+        # 数据集合并状态
+        merged_datasets = self.config.merge_datasets and all(list(merged_details.values())[:2])  # 只检查train和test
+        
+        return {
+            "training_dir": train_dir_exists,
+            "test_dir": test_dir_exists,
+            "temp_images_dir": temp_images_dir_exists,
+            "temp_labels_dir": temp_labels_dir_exists,
+            "train_annotations": train_annotations_exists,
+            "val_annotations": val_annotations_exists,
+            "training_class_count": training_class_count,
+            "test_image_count": test_image_count,
+            "augmented_image_count": augmented_image_count,
+            "dataset_extracted": dataset_extracted,
+            "data_processed": data_processed,
+            "processed_details": processed_details,
+            "augmentation_completed": augmentation_completed,
+            "aug_dir_exists": aug_dir_exists,
+            "zip_details": zip_details,
+            "merged_train_dir": merged_train_dir_exists,
+            "merged_test_dir": merged_test_dir_exists,
+            "merged_val_dir": merged_val_dir_exists,
+            "merged_train_class_count": merged_train_class_count,
+            "merged_test_image_count": merged_test_image_count,
+            "merged_details": merged_details,
+            "merged_datasets": merged_datasets
+        }
 
     def check_data_status(self) -> None:
-        """检查数据准备状态"""
+        """检查数据准备状态并输出信息"""
         status = self.get_data_status()
         
-        # 输出状态报告
-        logger.info("\nData Preparation Status:")
-        for key, value in status.items():
-            logger.info(f"{key}: {value}")
+        logger.info("=" * 50)
+        logger.info("DATA PREPARATION STATUS")
+        logger.info("=" * 50)
         
-        # 提供建议
-        if not status["training_dir"] or status["training_class_count"] == 0:
-            logger.info("Suggestion: Please run data preparation with --extract and --process to prepare training data")
-        elif not status["test_dir"] or status["test_image_count"] == 0:
-            logger.info("Suggestion: Please run extraction to prepare test data")
+        # 检查数据集提取状态
+        logger.info("\nDataset Extraction:")
+        if status["dataset_extracted"]:
+            logger.info("[OK] Dataset extraction completed")
         else:
-            logger.info("Data preparation completed, ready for training")
+            logger.info("[MISSING] Dataset extraction not completed")
+            
+        for zip_file, extracted in status["zip_details"].items():
+            if extracted:
+                logger.info(f"  [OK] {os.path.basename(zip_file)} extracted")
+            else:
+                logger.info(f"  [MISSING] {os.path.basename(zip_file)} not extracted")
+        
+        # 检查数据处理状态
+        logger.info("\nData Processing:")
+        if status["data_processed"]:
+            logger.info("[OK] Data processing completed")
+        else:
+            logger.info("[MISSING] Data processing not completed")
+            
+        for data_type, processed in status["processed_details"].items():
+            if processed:
+                logger.info(f"  [OK] {data_type} data processed")
+            else:
+                logger.info(f"  [MISSING] {data_type} data not processed")
+        
+        # 检查数据增强状态
+        logger.info("\nData Augmentation:")
+        if status["augmentation_completed"]:
+            logger.info("[OK] Data augmentation completed")
+            logger.info(f"  Total augmented images: {status['augmented_image_count']}")
+        else:
+            logger.info("[MISSING] Data augmentation not completed")
+        
+        # 检查数据集合并状态
+        logger.info("\nDataset Merging:")
+        if status["merged_datasets"]:
+            logger.info("[OK] Datasets merged")
+            for data_type, merged in status["merged_details"].items():
+                if merged:
+                    logger.info(f"  [OK] {data_type} datasets merged")
+                else:
+                    logger.info(f"  [MISSING] {data_type} datasets not merged")
+        else:
+            logger.info("[MISSING] Datasets not merged")
+        
+        logger.info("\nNext Recommended Steps:")
+        if not status["dataset_extracted"]:
+            logger.info("1. Extract dataset archives")
+        elif not status["data_processed"]:
+            logger.info("2. Process extracted data")
+        elif not status["augmentation_completed"] and self.config.use_data_aug:
+            logger.info("3. Run data augmentation")
+        elif not status["merged_datasets"] and self.config.merge_datasets:
+            logger.info("4. Merge datasets")
+        else:
+            logger.info("All data preparation steps completed!")
+        
+        logger.info("=" * 50)
 
     def add_noise(self, img: np.ndarray) -> Optional[np.ndarray]:
         """添加高斯噪声到图像
@@ -653,10 +807,17 @@ class DataPreparation:
         返回:
             合并后的数据集路径
         """
-        # 强制配置使用合并数据集
-        old_setting = self.config.merge_datasets
-        self.config.merge_datasets = True
-        
+        # 如果在配置中禁用合并功能，则不执行合并
+        if not self.config.merge_datasets and not force:
+            logger.info(f"Dataset merging is disabled in configuration for {mode} mode")
+            # 根据模式返回默认路径
+            if mode == "train":
+                return self.config.train_data
+            elif mode == "test":
+                return self.config.test_data
+            else:
+                return self.config.val_data
+                
         # 根据模式确定目标目录
         if mode == "train":
             merged_path = self.paths.merged_train_dir
@@ -668,18 +829,105 @@ class DataPreparation:
             raise ValueError(f"Invalid mode: {mode}")
         
         # 如果请求强制重建，删除现有目录
-        if force and os.path.exists(merged_path):
+        force_merge = force or self.config.merge_force
+        if force_merge and os.path.exists(merged_path):
             shutil.rmtree(merged_path)
             logger.info(f"Removed existing merged directory: {merged_path}")
         
-        # 调用实用程序函数处理合并
-        result_path = handle_datasets(mode)
+        # 检查目标目录是否已存在，如果存在且不是强制模式，直接返回
+        if os.path.exists(merged_path) and not force_merge:
+            logger.info(f"Using existing merged {mode} dataset: {merged_path}")
+            return merged_path
         
-        # 恢复原始配置设置
-        self.config.merge_datasets = old_setting
+        # 获取可用数据集列表
+        datasets = handle_datasets(mode, list_only=True)
         
-        logger.info(f"{mode.capitalize()} dataset merge completed: {result_path}")
-        return result_path
+        # 测试集特殊处理
+        if mode == "test" and not self.config.use_all_test_datasets:
+            # 过滤出指定的主要测试集
+            filtered_datasets = []
+            for dataset in datasets:
+                if self.config.primary_test_dataset in dataset:
+                    filtered_datasets.append(dataset)
+                    break
+                    
+            if filtered_datasets:
+                datasets = filtered_datasets
+                logger.info(f"Using only primary test dataset: {self.config.primary_test_dataset}")
+            else:
+                logger.warning(f"Primary test dataset {self.config.primary_test_dataset} not found, using all available")
+                
+        if not datasets:
+            logger.warning(f"No {mode} datasets found to merge")
+            
+            # 使用默认路径
+            if mode == "train":
+                return self.config.train_data
+            elif mode == "test":
+                return self.config.test_data
+            else:
+                return self.config.val_data
+        
+        if len(datasets) == 1 and not force_merge:
+            logger.info(f"Only one {mode} dataset found, no merge needed: {datasets[0]}")
+            return datasets[0]
+        
+        # 确保目标目录存在
+        os.makedirs(merged_path, exist_ok=True)
+        
+        # 执行合并
+        logger.info(f"Merging {len(datasets)} {mode} datasets...")
+        
+        if mode == "train":
+            # 合并训练集：将所有类别目录下的图像复制到对应的merged目录
+            for source_dir in datasets:
+                logger.info(f"Processing training dataset: {source_dir}")
+                for class_dir in os.listdir(source_dir):
+                    class_path = os.path.join(source_dir, class_dir)
+                    if os.path.isdir(class_path):
+                        # 创建目标类别目录
+                        target_class_dir = os.path.join(merged_path, class_dir)
+                        os.makedirs(target_class_dir, exist_ok=True)
+                        
+                        # 复制图像文件
+                        img_count = 0
+                        for img in glob.glob(os.path.join(class_path, "*.jpg")) + glob.glob(os.path.join(class_path, "*.png")):
+                            # 创建唯一的目标文件名
+                            source_name = os.path.basename(source_dir)
+                            img_name = f"{source_name}_{os.path.basename(img)}"
+                            target_path = os.path.join(target_class_dir, img_name)
+                            
+                            # 复制文件
+                            if not os.path.exists(target_path):
+                                shutil.copy2(img, target_path)
+                                img_count += 1
+                        
+                        logger.info(f"  Copied {img_count} images from class {class_dir}")
+        else:
+            # 合并测试集或验证集：直接将所有图像复制到merged目录
+            for source_dir in datasets:
+                logger.info(f"Processing {mode} dataset: {source_dir}")
+                img_count = 0
+                for img in glob.glob(os.path.join(source_dir, "*.jpg")) + glob.glob(os.path.join(source_dir, "*.png")):
+                    # 创建唯一的目标文件名
+                    source_name = os.path.basename(os.path.dirname(source_dir))
+                    img_name = f"{source_name}_{os.path.basename(img)}"
+                    target_path = os.path.join(merged_path, img_name)
+                    
+                    # 复制文件
+                    if not os.path.exists(target_path):
+                        shutil.copy2(img, target_path)
+                        img_count += 1
+                
+                logger.info(f"  Copied {img_count} images")
+        
+        # 计算合并后的文件数
+        jpg_count = len(glob.glob(os.path.join(merged_path, "**", "*.jpg"), recursive=True))
+        png_count = len(glob.glob(os.path.join(merged_path, "**", "*.png"), recursive=True))
+        total_files = jpg_count + png_count
+        
+        logger.info(f"{mode.capitalize()} dataset merge completed: {merged_path} with {total_files} total files")
+        return merged_path
     
     def list_available_datasets(self) -> Dict[str, List[str]]:
         """列出所有可用的数据集
@@ -706,7 +954,7 @@ class DataPreparation:
         return datasets 
 
 # 创建一个模块级函数来初始化和运行数据准备
-def setup_data(extract=True, process=True, augment=True, status=True):
+def setup_data(extract=True, process=True, augment=True, status=True, merge=None):
     """设置并处理数据
     
     参数:
@@ -714,6 +962,7 @@ def setup_data(extract=True, process=True, augment=True, status=True):
         process: 是否执行处理步骤
         augment: 是否执行数据增强步骤
         status: 是否检查状态
+        merge: 是否合并数据集，None表示使用配置中的设置
     
     返回:
         包含完成状态的字典
@@ -737,10 +986,16 @@ def setup_data(extract=True, process=True, augment=True, status=True):
             # 如果启用了数据增强，执行数据增强
             data_prep.augment_directory()
             
-        # 默认开启数据集合并功能
-        if config.merge_datasets:
-            data_prep.merge_datasets(mode="train")
-            data_prep.merge_datasets(mode="test")
+        # 执行数据集合并
+        should_merge = merge if merge is not None else config.merge_on_startup
+        if should_merge:
+            logger.info("Merging datasets as configured...")
+            train_path = data_prep.merge_datasets(mode="train")
+            test_path = data_prep.merge_datasets(mode="test")
+            if os.path.exists(paths.val_dir):
+                val_path = data_prep.merge_datasets(mode="val")
+        else:
+            logger.info("Dataset merging skipped as per configuration or parameters")
             
         return {"completed": True}
     except Exception as e:
@@ -789,13 +1044,100 @@ def merge_datasets_cli():
         if args.val or args.all:
             val_path = data_prep.merge_datasets("val", force=args.force)
             logger.info(f"Validation dataset merge completed: {val_path}")
+        
+        logger.info("Dataset merging process completed successfully.")
 
 if __name__ == "__main__":
     import sys
+    import argparse
     
-    # 检查是否有merge_datasets命令行参数
-    if len(sys.argv) > 1 and sys.argv[1] in ["--train", "--test", "--val", "--all", "--list", "--force"]:
+    # 创建命令行参数解析器
+    parser = argparse.ArgumentParser(description="Data preparation utility for Plant Disease Detection")
+    parser.add_argument('--extract', action='store_true', help='Extract dataset archives')
+    parser.add_argument('--process', action='store_true', help='Process extracted data')
+    parser.add_argument('--augment', action='store_true', help='Run data augmentation')
+    parser.add_argument('--status', action='store_true', help='Check data preparation status')
+    parser.add_argument('--merge', action='store_true', help='Merge available datasets')
+    parser.add_argument('--force', action='store_true', help='Force overwrite existing merged directories')
+    parser.add_argument('--test', action='store_true', help='Test data preparation functionality')
+    parser.add_argument('--disable-merge', action='store_true', help='Disable dataset merging')
+    parser.add_argument('--all', action='store_true', help='Run all data preparation steps')
+    
+    args = parser.parse_args()
+    
+    # 如果是测试模式
+    if args.test:
+        logger.info("Running in test mode")
+        # 临时保存配置
+        old_force = config.merge_force
+        old_merge = config.merge_datasets
+        
+        # 更新配置
+        if args.force:
+            config.merge_force = True
+            logger.info("Force merge enabled for testing")
+        if args.disable_merge:
+            config.merge_datasets = False
+            logger.info("Dataset merging disabled for testing")
+        elif args.merge:
+            config.merge_datasets = True
+            logger.info("Dataset merging enabled for testing")
+            
+        # 创建数据准备对象并测试状态
+        data_prep = DataPreparation()
+        data_prep.check_data_status()
+        
+        # 如果启用了合并，测试合并功能
+        if config.merge_datasets:
+            logger.info("\nTesting dataset merging...")
+            train_path = data_prep.merge_datasets("train", force=args.force)
+            logger.info(f"Merged training dataset path: {train_path}")
+            
+            test_path = data_prep.merge_datasets("test", force=args.force)
+            logger.info(f"Merged test dataset path: {test_path}")
+            
+            if os.path.exists(paths.val_dir):
+                val_path = data_prep.merge_datasets("val", force=args.force)
+                logger.info(f"Merged validation dataset path: {val_path}")
+        
+        # 恢复配置
+        config.merge_force = old_force
+        config.merge_datasets = old_merge
+        logger.info("Test completed")
+    
+    # 如果指定了特定任务
+    elif args.extract or args.process or args.augment or args.status or args.merge or args.all:
+        # 确定要执行的任务
+        do_extract = args.extract or args.all
+        do_process = args.process or args.all
+        do_augment = args.augment or args.all
+        do_status = args.status or args.all or True  # 默认始终执行状态检查
+        do_merge = args.merge or args.all
+        
+        # 如果禁用合并
+        if args.disable_merge:
+            config.merge_datasets = False
+            do_merge = False
+            logger.info("Dataset merging disabled")
+        
+        # 如果强制合并
+        if args.force:
+            config.merge_force = True
+            logger.info("Force merge enabled")
+        
+        # 执行数据准备
+        setup_data(
+            extract=do_extract,
+            process=do_process,
+            augment=do_augment, 
+            status=do_status,
+            merge=do_merge
+        )
+    
+    # 如果存在dataset_merge命令行参数
+    elif len(sys.argv) > 1 and sys.argv[1] in ["--train", "--test", "--val", "--all", "--list", "--force"]:
         merge_datasets_cli()
+    
+    # 默认情况下，执行完整流程
     else:
-        # 默认执行完整的数据准备流程
-        setup_data(extract=True, process=True, augment=True, status=True) 
+        setup_data(extract=True, process=True, augment=True, status=True, merge=None) 

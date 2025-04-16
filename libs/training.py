@@ -7,6 +7,7 @@ import pandas as pd
 import warnings
 import psutil
 import logging
+import glob
 from datetime import datetime
 from torch import nn, optim
 from config.config import config, paths
@@ -293,8 +294,45 @@ class Trainer:
         """
         epochs = epochs or self.config.epoch
         
+        # Check for existing models and number of trained epochs
+        start_epoch = 0
+        best_acc = 0.0
+        checkpoint_path = os.path.join(self.config.weights, self.config.model_name, "0", "_checkpoint.pth.tar")
+        best_model_path = os.path.join(self.config.best_models, self.config.model_name, "0", "model_best.pth.tar")
+        
+        if os.path.exists(checkpoint_path) or os.path.exists(best_model_path):
+            model_path = best_model_path if os.path.exists(best_model_path) else checkpoint_path
+            try:
+                checkpoint = torch.load(model_path, map_location=self.device)
+                start_epoch = checkpoint.get('epoch', 0)
+                best_acc = checkpoint.get('best_acc', 0.0)
+                
+                if start_epoch >= epochs:
+                    self.logger.info(f"Model already trained for {start_epoch} epochs (configured: {epochs})")
+                    return {"completed": True, "epochs_trained": start_epoch, "best_acc": best_acc}
+                else:
+                    self.logger.info(f"Continuing training from epoch {start_epoch}/{epochs}")
+            except Exception as e:
+                self.logger.warning(f"Error loading existing checkpoint: {str(e)}. Starting from epoch 0.")
+                start_epoch = 0
+        
         # Setup for training
         model = get_net()
+        
+        # Load weights if we're continuing training
+        if start_epoch > 0:
+            try:
+                checkpoint = torch.load(model_path, map_location=self.device)
+                if "state_dict" in checkpoint:
+                    model.load_state_dict(checkpoint["state_dict"])
+                    if "optimizer" in checkpoint:
+                        optimizer_state = checkpoint["optimizer"]
+                else:
+                    model.load_state_dict(checkpoint)
+                self.logger.info(f"Loaded weights from {model_path}")
+            except Exception as e:
+                self.logger.error(f"Failed to load weights: {str(e)}. Starting with fresh model.")
+        
         model = model.to(self.device)
         
         # Create a detailed training log
@@ -304,6 +342,14 @@ class Trainer:
         # Get loss function and optimizer
         criterion = get_loss_function(self.device)
         optimizer = get_optimizer(model, self.config.optimizer)
+        
+        # Restore optimizer state if continuing training
+        if start_epoch > 0 and 'optimizer_state' in locals():
+            try:
+                optimizer.load_state_dict(optimizer_state)
+                self.logger.info("Restored optimizer state")
+            except Exception as e:
+                self.logger.warning(f"Failed to restore optimizer state: {str(e)}")
         
         # Set up learning rate scheduler
         train_loader = train_loader or self._get_train_loader()
@@ -320,8 +366,7 @@ class Trainer:
             model_ema = create_model_ema(model)
             
         # Training loop
-        best_acc = 0.0
-        for epoch in range(epochs):
+        for epoch in range(start_epoch, epochs):
             # Train for one epoch
             train_loss, train_acc, _ = self.train_epoch(
                 model, train_loader, criterion, optimizer, epoch, train_log, scaler, model_ema
@@ -416,8 +461,39 @@ class Trainer:
         return val_losses.avg, val_top1.avg
     
     def _get_train_loader(self):
-        """Create and return training data loader"""
-        train_files = get_files(self.config.train_data, mode="train")
+        """Create and return training data loader based on configuration settings
+        
+        Returns the appropriate dataloader based on:
+        1. If data augmentation is enabled, it uses the augmented data path
+        2. For merging, the handle_datasets function automatically handles dataset selection
+        """
+        # Determine the appropriate data source based on configuration
+        train_path = None
+        
+        # If data augmentation is enabled and the augmented directory exists with files, use it
+        if self.config.use_data_aug and os.path.exists(self.config.aug_target_path):
+            # Check if the augmented directory has files
+            aug_files = glob.glob(os.path.join(self.config.aug_target_path, "**/*.jpg"), recursive=True)
+            aug_files.extend(glob.glob(os.path.join(self.config.aug_target_path, "**/*.png"), recursive=True))
+            
+            if aug_files:
+                self.logger.info(f"Using augmented training data from: {self.config.aug_target_path}")
+                train_path = self.config.aug_target_path
+        
+        # If not using augmented data, let handle_datasets choose the appropriate source
+        # This will automatically handle merged datasets if merging is enabled
+        if not train_path:
+            # This function handles dataset merging automatically
+            train_path = handle_datasets(mode="train")
+            self.logger.info(f"Using training data from: {train_path}")
+            
+        # Get files from the selected data source
+        train_files = get_files(train_path, mode="train")
+        
+        # Log the number of training files
+        self.logger.info(f"Training dataset contains {len(train_files)} images")
+        
+        # Create dataset and dataloader
         train_dataset = PlantDiseaseDataset(train_files, train=True)
         return DataLoader(
             train_dataset, 

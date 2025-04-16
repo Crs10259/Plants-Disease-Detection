@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd 
 import torch 
 import os
+import logging
 from itertools import chain 
 from glob import glob
 from tqdm import tqdm
@@ -12,6 +13,31 @@ from config.config import config, paths
 from PIL import Image 
 from concurrent.futures import ThreadPoolExecutor
 from utils.utils import handle_datasets
+
+# 设置日志记录器
+logger = logging.getLogger('DataLoader')
+logger.setLevel(logging.INFO)
+
+# 创建日志处理器
+if not logger.handlers:
+    # 文件处理器
+    if not os.path.exists(paths.logs_dir):
+        os.makedirs(paths.logs_dir, exist_ok=True)
+    file_handler = logging.FileHandler(os.path.join(paths.logs_dir, 'dataloader.log'))
+    file_handler.setLevel(logging.INFO)
+    
+    # 控制台处理器
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    
+    # 创建格式化器并添加到处理器
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    
+    # 添加处理器到日志记录器
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
 
 # 设置随机种子
 random.seed(config.seed)
@@ -191,7 +217,7 @@ def get_files(root, mode):
     if not os.path.exists(actual_root):
         raise FileNotFoundError(f"Directory not found: {actual_root}")
     
-    print(f"Loading {mode} dataset from: {actual_root}")
+    logger.info(f"Loading {mode} dataset from: {actual_root}")
     
     if mode == "test":
         files = [os.path.join(actual_root, img) for img in os.listdir(actual_root) 
@@ -210,7 +236,7 @@ def get_files(root, mode):
             for pattern in image_patterns:
                 all_images.extend(glob(folder + pattern))
                 
-        print(f"Loading training dataset ({len(all_images)} images)")
+        logger.info(f"Loading training dataset ({len(all_images)} images)")
         for file in tqdm(all_images):
             all_data_path.append(file)
             # 从路径中提取标签

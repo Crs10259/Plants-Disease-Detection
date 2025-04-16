@@ -88,6 +88,14 @@ class DefaultConfigs:
     merge_datasets: bool = True  # 是否合并多个数据集
     dataset_to_use: str = "auto"  # 不合并时选择使用哪个数据集: "auto"(最大的), "first", "last", "specific"
     specific_dataset: str = ""  # 指定使用的数据集名称，当dataset_to_use="specific"时有效
+    duplicate_test_to_common: bool = True  # 是否将测试集复制到通用测试目录
+    merge_force: bool = False  # 是否强制重新合并已存在的数据集
+    merge_on_startup: bool = True  # 是否在程序启动时自动合并数据集
+
+    # 测试集处理配置 Test Dataset Configuration
+    test_name_pattern: str = "ai_challenger_pdr2018_test*.zip"  # 测试集ZIP文件的匹配模式
+    use_all_test_datasets: bool = True  # 是否使用所有测试集
+    primary_test_dataset: str = "testa"  # 如果不使用所有测试集，指定使用哪个测试集
 
     # 数据增强路径配置 Data Augmentation Path Configuration
     aug_source_path: str = field(default="")  # 数据增强源数据路径
