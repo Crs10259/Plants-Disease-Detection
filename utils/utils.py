@@ -661,34 +661,34 @@ def handle_datasets(data_type: str = "train", list_only: bool = False) -> Union[
         return target_dirs[0]
     
     # 多个数据集时的处理逻辑
-    # 根据策略选择一个数据集
-    selected_dir = None
-    
-    if config.dataset_to_use == "first":
-        selected_dir = target_dirs[0]
+        # 根据策略选择一个数据集
+        selected_dir = None
+        
+        if config.dataset_to_use == "first":
+            selected_dir = target_dirs[0]
         logger.info(f"Selected first {data_type} dataset: {selected_dir}")
-    
-    elif config.dataset_to_use == "last":
-        selected_dir = target_dirs[-1]
+        
+        elif config.dataset_to_use == "last":
+            selected_dir = target_dirs[-1]
         logger.info(f"Selected last {data_type} dataset: {selected_dir}")
-    
-    elif config.dataset_to_use == "specific":
-        # 查找特定名称的数据集
-        for dir_path in target_dirs:
-            if config.specific_dataset in dir_path:
-                selected_dir = dir_path
+        
+        elif config.dataset_to_use == "specific":
+            # 查找特定名称的数据集
+            for dir_path in target_dirs:
+                if config.specific_dataset in dir_path:
+                    selected_dir = dir_path
                 logger.info(f"Found specified {data_type} dataset: {selected_dir}")
-                break
-        if selected_dir is None:
+                    break
+            if selected_dir is None:
             logger.warning(f"Could not find specified {data_type} dataset: {config.specific_dataset}, using largest dataset instead")
+                selected_dir = max(target_dirs, key=lambda d: len(glob.glob(os.path.join(d, "**/*"), recursive=True)))
+        
+        else:  # "auto" 或其他未知选项
+            # 使用文件数量最多的数据集
             selected_dir = max(target_dirs, key=lambda d: len(glob.glob(os.path.join(d, "**/*"), recursive=True)))
-    
-    else:  # "auto" 或其他未知选项
-        # 使用文件数量最多的数据集
-        selected_dir = max(target_dirs, key=lambda d: len(glob.glob(os.path.join(d, "**/*"), recursive=True)))
-        logger.info(f"Auto-selected largest {data_type} dataset: {selected_dir}")
-    
-    return selected_dir
+    logger.info(f"Auto-selected largest {data_type} dataset: {selected_dir}")
+        
+        return selected_dir
 
 def test_dataset_handling():
     """测试数据集处理功能"""

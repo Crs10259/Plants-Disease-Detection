@@ -11,6 +11,7 @@ class PathConfig:
     base_dir: str = "./"
     data_dir: str = "./data/"
     models_dir: str = "./models/"
+    # downloads_dir: str = "./data/downloads/"  
     
     # 数据目录
     train_dir: str = "./data/train/"
@@ -61,7 +62,12 @@ class PathConfig:
             if isinstance(attr_value, str) and attr_name.endswith(('_dir', '_path')):
                 # 确保目录路径以斜杠结尾
                 if attr_name.endswith('_dir') and not attr_value.endswith('/'):
-                    setattr(self, attr_name, attr_value + '/')
+                    attr_value = attr_value + '/'
+                
+                # 确保所有路径使用正斜杠，避免Windows路径问题
+                attr_value = attr_value.replace('\\', '/')
+                
+                setattr(self, attr_name, attr_value)
         
         # 创建关键目录
         essential_dirs = [
@@ -81,10 +87,16 @@ class PathConfig:
             self.aug_dir,
             self.aug_train_dir,
             self.augmented_images_dir
+            # self.downloads_dir  
         ]
         
         for directory in essential_dirs:
-            os.makedirs(directory, exist_ok=True)
+            try:
+                # 确保路径格式一致后再创建目录
+                dir_path = directory.replace('\\', '/')
+                os.makedirs(dir_path, exist_ok=True)
+            except Exception as e:
+                print(f"Warning: Could not create directory {directory}: {str(e)}")
 
 def get_path_config():
     """创建PathConfig实例的工厂函数"""

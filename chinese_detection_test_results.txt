@@ -1,0 +1,7 @@
+Testing Chinese character detection:
+'测试.jpg': Contains Chinese
+'测试test.jpg': Contains Chinese
+'test.jpg': No Chinese
+'test - 副本.jpg': Contains Chinese
+'test_picture_1.jpg': No Chinese
+'图片1.png': Contains Chinese

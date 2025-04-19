@@ -56,8 +56,8 @@ class PlantDiseaseDataset(Dataset):
             train: 是否为训练模式
             test: 是否为测试模式
         """
-        self.test = test
-        self.train = train
+        self.test = test 
+        self.train = train 
         self.transforms = self._get_transforms(transforms, train, test)
         self.imgs = self._load_images(label_list)
         
@@ -87,10 +87,10 @@ class PlantDiseaseDataset(Dataset):
             返回:
                 (是否有效, 图像数据)元组
             """
-            try:
-                filename = img_data[0]
+                try:
+                    filename = img_data[0]
                 # 只验证文件头，不完整加载图像
-                with Image.open(filename) as img:
+                    with Image.open(filename) as img:
                     img.verify()
                 return True, img_data
             except Exception:
@@ -150,9 +150,9 @@ class PlantDiseaseDataset(Dataset):
         # 训练模式额外的数据增强
         if not test and train:
             train_transforms = [
-                T.RandomRotation(30),
-                T.RandomHorizontalFlip(),
-                T.RandomVerticalFlip(),
+                    T.RandomRotation(30),
+                    T.RandomHorizontalFlip(),
+                    T.RandomVerticalFlip(),
                 T.RandomAffine(45)
             ]
             base_transforms[1:1] = train_transforms  # 在ToTensor之前插入训练时的转换
@@ -169,22 +169,22 @@ class PlantDiseaseDataset(Dataset):
             (图像张量, 标签)或(图像张量, 文件名)
         """
         try:
-            if self.test:
-                filename = self.imgs[index]
+        if self.test:
+            filename = self.imgs[index]
                 img = Image.open(filename)
                 img_tensor = self.transforms(img)
                 return img_tensor, filename
-            else:
+        else:
                 filename, label = self.imgs[index]
                 img = Image.open(filename)
                 img_tensor = self.transforms(img)
                 return img_tensor, label
-        except Exception as e:
+            except Exception as e:
             print(f"Error loading image at index {index}: {str(e)}")
             # 返回空张量作为错误处理
             return (torch.zeros((3, config.img_height, config.img_weight)), 
                    self.imgs[index][1] if not self.test else self.imgs[index])
-
+                
     def __len__(self):
         """返回数据集大小"""
         return len(self.imgs)
@@ -224,7 +224,7 @@ def get_files(root, mode):
                 if img.endswith(('.jpg', '.JPG', '.png', '.PNG'))]
         return pd.DataFrame({"filename": files})
         
-    elif mode == "train":
+    elif mode == "train": 
         all_data_path, labels = [], []
         image_folders = [os.path.join(actual_root, x) for x in os.listdir(actual_root) 
                         if os.path.isdir(os.path.join(actual_root, x))]

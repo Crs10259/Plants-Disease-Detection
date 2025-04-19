@@ -329,7 +329,7 @@ def main():
             model_path = best_model_path if os.path.exists(best_model_path) else checkpoint_path
             try:
                 checkpoint = torch.load(model_path, map_location='cpu')
-                trained_epochs = checkpoint.get('epoch', 0)
+                trained_epochs = checkpoint.get('epoch', 0)val_annotations
                 
                 if trained_epochs >= config.epoch:
                     logger.info(f"Model already trained for {trained_epochs} epochs (target: {config.epoch})")
