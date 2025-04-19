@@ -14,12 +14,14 @@ class PathConfig:
     
     # 数据目录
     train_dir: str = "./data/train/"
+    train_images_dir: str = "./data/train/images/"
     test_dir: str = "./data/test/"
     test_images_dir: str = "./data/test/images/"
     val_dir: str = "./data/val/"
     temp_dir: str = "./data/temp/"
     temp_images_dir: str = "./data/temp/images/"
     temp_labels_dir: str = "./data/temp/labels/"
+    temp_dataset_dir: str = "./data/temp/dataset/"
     
     # 合并数据集目录
     merged_train_dir: str = "./data/merged_train/"
@@ -29,6 +31,7 @@ class PathConfig:
     # 数据增强目录
     aug_dir: str = "./data/aug/"
     aug_train_dir: str = "./data/aug/train/"
+    augmented_images_dir: str = "./data/aug/images/"
     
     # 模型目录
     weights_dir: str = "./weights/"
@@ -51,7 +54,7 @@ class PathConfig:
     prediction_file: str = "./submit/prediction.json"
     
     def __post_init__(self):
-        """确保所有路径都有一致的格式"""
+        """确保所有路径都有一致的格式并创建必要的目录"""
         # 规范化路径格式
         for attr_name in self.__annotations__:
             attr_value = getattr(self, attr_name)
@@ -61,7 +64,27 @@ class PathConfig:
                     setattr(self, attr_name, attr_value + '/')
         
         # 创建关键目录
-        os.makedirs(self.logs_dir, exist_ok=True)
+        essential_dirs = [
+            self.data_dir,
+            self.logs_dir,
+            self.train_dir,
+            self.test_dir,
+            self.test_images_dir,
+            self.val_dir,
+            self.temp_dir,
+            self.temp_images_dir, 
+            self.temp_labels_dir,
+            self.temp_dataset_dir,
+            self.weights_dir,
+            self.best_weights_dir,
+            self.submit_dir,
+            self.aug_dir,
+            self.aug_train_dir,
+            self.augmented_images_dir
+        ]
+        
+        for directory in essential_dirs:
+            os.makedirs(directory, exist_ok=True)
 
 def get_path_config():
     """创建PathConfig实例的工厂函数"""
@@ -84,8 +107,15 @@ class DefaultConfigs:
     submit: str = field(default="")  # 提交结果保存路径
     logs: str = field(default="")  # 日志保存路径
     
+    # 数据集路径配置 Dataset Path Configuration
+    dataset_path: str = None  # 外部数据集路径，设置为None表示使用默认的data目录
+    training_dataset_file: str = "ai_challenger_pdr2018_trainingset_20181023.zip"  # 训练集数据文件名
+    validation_dataset_file: str = "ai_challenger_pdr2018_validationset_20181023.zip"  # 验证集数据文件名
+    use_custom_dataset_path: bool = False  # 是否使用自定义数据集路径
+    supported_dataset_formats: Tuple[str, ...] = ('.zip', '.rar', '.tar', '.gz', '.tgz')  # 支持的数据集格式
+    
     # 数据集合并配置 Dataset Merging Configuration
-    merge_datasets: bool = True  # 是否合并多个数据集
+    merge_datasets: bool = False  # 是否合并多个数据集
     dataset_to_use: str = "auto"  # 不合并时选择使用哪个数据集: "auto"(最大的), "first", "last", "specific"
     specific_dataset: str = ""  # 指定使用的数据集名称，当dataset_to_use="specific"时有效
     duplicate_test_to_common: bool = True  # 是否将测试集复制到通用测试目录
@@ -137,6 +167,7 @@ class DefaultConfigs:
     # 数据增强配置 Data Augmentation Configuration
     use_data_aug: bool = True  # 是否启用数据增强
     use_mode: str = 'merge'  # 数据增强模式: 'merge', 'replace'
+    merge_augmented_data: bool = True  # 是否合并增强数据和原始数据
     aug_noise: bool = True  # 是否添加噪声
     aug_brightness: bool = True  # 是否调整亮度
     aug_flip: bool = True  # 是否进行翻转

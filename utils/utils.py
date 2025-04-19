@@ -240,8 +240,8 @@ def cutmix_data(x: torch.Tensor, y: torch.Tensor, alpha: float = 1.0) -> Tuple[t
     W = x.size()[2]
     H = x.size()[3]
     cut_rat = np.sqrt(1. - lam)
-    cut_w = np.int(W * cut_rat)
-    cut_h = np.int(H * cut_rat)
+    cut_w = int(W * cut_rat)
+    cut_h = int(H * cut_rat)
     
     # 随机选择裁剪位置
     cx = np.random.randint(W)
@@ -298,7 +298,7 @@ def accuracy(output: torch.Tensor, target: torch.Tensor, topk: Tuple[int, ...] =
 
     res = []
     for k in topk:
-        correct_k = correct[:k].reshape(-1).float().sum(0)
+        correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
         res.append(correct_k.mul_(100.0 / batch_size))
     return res
 
@@ -504,7 +504,7 @@ def get_loss_function(device: torch.device) -> nn.Module:
     return criterion
 
 class MyEncoder(json.JSONEncoder):
-    """自定义JSON编码器"""
+    """自定义JSON编码器，处理NumPy数据类型"""
     
     def default(self, obj: Any) -> Any:
         """处理特殊类型的对象
@@ -515,7 +515,7 @@ class MyEncoder(json.JSONEncoder):
         返回:
             可JSON序列化的对象
         """
-        if isinstance(obj, np.integer):
+        if isinstance(obj, (np.integer, np.int32, np.int64)):
             return int(obj)
         elif isinstance(obj, np.floating):
             return float(obj)
@@ -739,13 +739,13 @@ def test_dataset_handling():
     
     # 测试列出数据集
     logger.info("Testing dataset listing...")
-    train_datasets = handle_datasets("train", list_only=True)
+    train_datasets = handle_datasets(data_type="train", list_only=True)
     logger.info(f"Found {len(train_datasets)} training datasets")
     
-    test_datasets = handle_datasets("test", list_only=True)
+    test_datasets = handle_datasets(data_type="test", list_only=True)
     logger.info(f"Found {len(test_datasets)} test datasets")
     
-    val_datasets = handle_datasets("val", list_only=True)
+    val_datasets = handle_datasets(data_type="val", list_only=True)
     logger.info(f"Found {len(val_datasets)} validation datasets")
     
     # 测试数据集合并
@@ -754,15 +754,15 @@ def test_dataset_handling():
     config.merge_datasets = True
     
     # 测试训练集处理
-    train_path = handle_datasets("train")
+    train_path = handle_datasets(data_type="train")
     logger.info(f"Selected training dataset path: {train_path}")
     
     # 测试测试集处理
-    test_path = handle_datasets("test")
+    test_path = handle_datasets(data_type="test")
     logger.info(f"Selected test dataset path: {test_path}")
     
     # 测试验证集处理
-    val_path = handle_datasets("val")
+    val_path = handle_datasets(data_type="val")
     logger.info(f"Selected validation dataset path: {val_path}")
     
     # 恢复原始设置
@@ -818,6 +818,6 @@ def accuracy(output: torch.Tensor, target: torch.Tensor, topk: Tuple[int, ...] =
 
     res = []
     for k in topk:
-        correct_k = correct[:k].reshape(-1).float().sum(0)
+        correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
         res.append(correct_k.mul_(100.0 / batch_size))
     return res 

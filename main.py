@@ -10,17 +10,21 @@ import logging
 import sys
 from typing import Dict, Any, List, Optional
 from config.config import config, paths
-from libs.training import train_model
 from libs.inference import predict
 from dataset.data_prep import setup_data
 import torch
+from datetime import datetime
+
+# Add the project root to the path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler()
+        logging.StreamHandler(),
+        logging.FileHandler(os.path.join('logs', f'main_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'))
     ]
 )
 logger = logging.getLogger('Main')
@@ -33,7 +37,7 @@ def setup_parser() -> argparse.ArgumentParser:
     """
     parser = argparse.ArgumentParser(
         description="Plant Disease Detection System",
-        formatter_class=argparse.RawTextHelpFormatter
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     
     # Create subparsers for different commands
@@ -48,8 +52,20 @@ def setup_parser() -> argparse.ArgumentParser:
                             help='Process images from temp directory into training directory')
     prep_parser.add_argument('--augment', action='store_true', 
                             help='Perform data augmentation')
+    prep_parser.add_argument('--status', action='store_true', 
+                            help='Check data preparation status')
     prep_parser.add_argument('--all', action='store_true', 
                             help='Perform all data preparation steps')
+    prep_parser.add_argument('--merge', choices=['train', 'test', 'val', 'all'], 
+                            help='Merge datasets')
+    prep_parser.add_argument('--dataset-path', type=str, 
+                            help='Custom path to dataset files or directory')
+    prep_parser.add_argument('--merge-augmented', action='store_true', 
+                            help='Merge augmented data with original data')
+    prep_parser.add_argument('--no-merge-augmented', action='store_true', 
+                            help='Do not merge augmented data with original data')
+    prep_parser.add_argument('--cleanup', action='store_true', 
+                            help='Clean up temporary files after processing')
     
     # Training command
     train_parser = subparsers.add_parser('train', 
@@ -66,6 +82,12 @@ def setup_parser() -> argparse.ArgumentParser:
                              help='Skip data preparation before training')
     train_parser.add_argument('--force-train', action='store_true', 
                              help='Force retraining even if model is already trained')
+    train_parser.add_argument('--merge-augmented', action='store_true', 
+                             help='Merge augmented data with original training data')
+    train_parser.add_argument('--no-merge-augmented', action='store_true', 
+                             help='Do not merge augmented data with original training data')
+    train_parser.add_argument('--dataset-path', type=str, 
+                             help='Custom path to dataset files or directory')
     
     # Inference command
     infer_parser = subparsers.add_parser('predict', 
@@ -88,18 +110,70 @@ def prepare_data(args) -> Dict[str, Any]:
     Returns:
         Dictionary with data preparation status
     """
-    # If --all specified or no specific flags set, run all preparation steps
-    if args.all or not (args.extract or args.process or args.augment):
-        args.extract = True
-        args.process = True
-        args.augment = True
+    logger.info("Starting data preparation")
     
-    # Run data preparation
-    return setup_data(
+    # Handle dataset path
+    custom_dataset_path = getattr(args, 'dataset_path', None)
+    if custom_dataset_path:
+        logger.info(f"Using custom dataset path: {custom_dataset_path}")
+        # Update config if a custom path is provided
+        config.use_custom_dataset_path = True
+        
+    # If status flag is the only one set, just check status
+    if args.status and not any([args.extract, args.process, args.augment, args.all, args.merge]):
+        result = setup_data(extract=False, process=False, augment=False, status=True, 
+                  merge=None, custom_dataset_path=custom_dataset_path)
+        return result
+    
+    # Handle the --all flag
+    if args.all:
+        args.extract = args.process = args.augment = True
+        if not args.merge:
+            args.merge = "all"
+    
+    # If no flags are set, default to showing status
+    if not any([args.extract, args.process, args.augment, args.merge]):
+        logger.info("No specific preparation steps specified, showing data status")
+        result = setup_data(extract=False, process=False, augment=False, status=True,
+                  merge=None, custom_dataset_path=custom_dataset_path)
+        return result
+    
+    # Handle augmented data merging preference
+    merge_augmented = None
+    if hasattr(args, 'merge_augmented') and args.merge_augmented:
+        merge_augmented = True
+        logger.info("Enabling merging of augmented data with original data")
+    elif hasattr(args, 'no_merge_augmented') and args.no_merge_augmented:
+        merge_augmented = False
+        logger.info("Disabling merging of augmented data with original data")
+    
+    # Handle cleanup flag
+    cleanup_temp = getattr(args, 'cleanup', False)
+    if cleanup_temp:
+        logger.info("Will clean up temporary files after processing")
+    
+    # Run data preparation with specified steps
+    merge_option = args.merge if args.merge else None
+    result = setup_data(
         extract=args.extract,
         process=args.process,
-        augment=args.augment
+        augment=args.augment,
+        status=args.status if args.status else True,  # Always show status at the end
+        merge=merge_option,
+        cleanup_temp=cleanup_temp,
+        custom_dataset_path=custom_dataset_path,
+        merge_augmented=merge_augmented
     )
+    
+    # Display warnings
+    if "warnings" in result and result["warnings"]:
+        logger.info("Data preparation completed with warnings:")
+        for warning in result["warnings"]:
+            logger.warning(f"  - {warning}")
+    else:
+        logger.info("Data preparation completed successfully")
+        
+    return result
 
 def train_pipeline(args) -> Dict[str, Any]:
     """Run training pipeline based on command line arguments
@@ -110,57 +184,41 @@ def train_pipeline(args) -> Dict[str, Any]:
     Returns:
         Dictionary with training results
     """
-    # Override config values if specified in arguments
+    logger.info("Starting training pipeline")
+    
+    # Handle dataset path
+    custom_dataset_path = getattr(args, 'dataset_path', None)
+    if custom_dataset_path:
+        logger.info(f"Using custom dataset path: {custom_dataset_path}")
+        # Update config if a custom path is provided
+        config.use_custom_dataset_path = True
+    
+    # Run data preparation if requested
+    if args.prepare:
+        prepare_args = argparse.Namespace(
+            extract=True, process=True, augment=True, 
+            all=False, status=True, merge="all",
+            dataset_path=custom_dataset_path,
+            merge_augmented=args.merge_augmented if hasattr(args, 'merge_augmented') else None,
+            no_merge_augmented=args.no_merge_augmented if hasattr(args, 'no_merge_augmented') else None,
+            cleanup=getattr(args, 'cleanup', False)
+        )
+        prepare_data(prepare_args)
+    
+    # Import here to avoid circular imports
+    from libs.training import train_model
+    
+    # Override config with command line arguments
+    if args.epochs:
+        config.epoch = args.epochs
     if args.model:
         config.model_name = args.model
-        logger.info(f"Using model: {config.model_name}")
-        
     if args.batch_size:
         config.train_batch_size = args.batch_size
-        logger.info(f"Using batch size: {config.train_batch_size}")
-        
-    epochs = args.epochs or config.epoch
-    config.epoch = epochs  # Update config epoch value for checkpoint checking
-    
-    # Run data preparation before training if not disabled
-    if getattr(args, 'prepare', True) and not getattr(args, 'no_prepare', False):
-        logger.info("Running data preparation before training")
-        data_result = setup_data(extract=True, process=True, augment=True)
-        
-        if not data_result.get('completed', False):
-            logger.error("Data preparation failed. Check logs for details.")
-            return {"error": "Data preparation failed", "details": data_result.get('error', 'Unknown error')}
-        
-        logger.info("Data preparation completed successfully")
-    else:
-        logger.info("Skipping data preparation as requested")
-    
-    # Check if we need to train or continue training the model
-    model_needs_training = True
-    checkpoint_path = os.path.join(paths.weights_dir, config.model_name, "0", "_checkpoint.pth.tar")
-    best_model_path = os.path.join(paths.best_weights_dir, config.model_name, "0", "model_best.pth.tar")
-    
-    if os.path.exists(checkpoint_path) or os.path.exists(best_model_path):
-        model_path = best_model_path if os.path.exists(best_model_path) else checkpoint_path
-        try:
-            checkpoint = torch.load(model_path, map_location='cpu')
-            trained_epochs = checkpoint.get('epoch', 0)
-            
-            if trained_epochs >= epochs:
-                logger.info(f"Model already trained for {trained_epochs} epochs (target: {epochs})")
-                if not getattr(args, 'force_train', False):
-                    logger.info("Skipping training. Use --force-train to override.")
-                    return {"completed": True, "epochs_trained": trained_epochs}
-                else:
-                    logger.info("Forcing retraining as requested.")
-            else:
-                logger.info(f"Continuing training from epoch {trained_epochs}/{epochs}")
-        except Exception as e:
-            logger.warning(f"Error checking model training status: {str(e)}. Will train from scratch.")
     
     # Run training
-    logger.info(f"Starting training for {epochs} epochs")
-    return train_model(config)
+    train_model()
+    logger.info("Training completed")
 
 def run_inference(args) -> None:
     """Run inference based on command line arguments
@@ -213,13 +271,51 @@ def main():
     parser = setup_parser()
     args = parser.parse_args()
     
+    # Create a default Namespace if no arguments were provided
+    if len(sys.argv) == 1:
+        args = argparse.Namespace(command=None)
+    
     # If no command specified, run everything in sequence
     if not args.command:
         logger.info("No command specified. Running complete pipeline...")
         
+        # Get possible custom dataset path
+        custom_dataset_path = getattr(args, 'dataset_path', None)
+        if custom_dataset_path:
+            logger.info(f"Using custom dataset path: {custom_dataset_path}")
+            config.use_custom_dataset_path = True
+        
+        # Check if there are settings for merging augmented data
+        merge_augmented = None
+        if hasattr(args, 'merge_augmented') and args.merge_augmented:
+            merge_augmented = True
+        elif hasattr(args, 'no_merge_augmented') and args.no_merge_augmented:
+            merge_augmented = False
+        
         # 1. Prepare data
         logger.info("Step 1: Preparing data...")
-        setup_data(extract=True, process=True, augment=True)
+        prep_result = setup_data(
+            extract=True, 
+            process=True, 
+            augment=True, 
+            cleanup_temp=getattr(args, 'cleanup', False),
+            custom_dataset_path=custom_dataset_path, 
+            merge_augmented=merge_augmented
+        )
+                      
+        # Display any warnings about dataset path fallback
+        if "warnings" in prep_result and prep_result["warnings"]:
+            logger.warning("Data preparation completed with warnings:")
+            for warning in prep_result["warnings"]:
+                logger.warning(f"  - {warning}")
+                
+        # Check if preparation was successful
+        if not prep_result.get("success", True):
+            logger.error("Data preparation failed, cannot proceed with training")
+            if "errors" in prep_result and prep_result["errors"]:
+                for error in prep_result["errors"]:
+                    logger.error(f"  - {error}")
+            return
         
         # 2. Train the model
         logger.info("Step 2: Checking training status...")
@@ -245,6 +341,8 @@ def main():
         
         if model_needs_training:
             logger.info("Step 2: Training model...")
+            # Import the train_model function here to avoid circular imports
+            from libs.training import train_model
             train_model(config)
         else:
             logger.info("Step 2: Skipping training as model is already fully trained.")

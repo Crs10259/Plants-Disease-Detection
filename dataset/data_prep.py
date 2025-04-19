@@ -19,6 +19,8 @@ from config.config import config, paths
 import random
 from concurrent.futures import ThreadPoolExecutor
 from utils.utils import handle_datasets
+import traceback
+import tarfile
 
 # 设置日志
 logging.basicConfig(
@@ -202,20 +204,106 @@ class DataPreparation:
             logger.error(f"Error processing file {file.get('image_id', 'unknown')}: {str(e)}")
             return False
 
-    def extract_dataset(self) -> None:
-        """解压数据集文件并准备数据"""
+    def extract_dataset(self, cleanup_temp=False) -> None:
+        """解压数据集文件并准备数据
+        
+        参数:
+            cleanup_temp: 处理完成后是否清理临时文件夹
+        """
         self.setup_directories()
         
-        # 检查数据集压缩文件是否存在
+        # 确定数据集源路径
         data_dir = self.paths.data_dir
-        train_zip = os.path.join(data_dir, "ai_challenger_pdr2018_trainingset_20181023.zip")
-        val_zip = os.path.join(data_dir, "ai_challenger_pdr2018_validationset_20181023.zip")
+        custom_dataset_path = self.config.dataset_path if self.config.use_custom_dataset_path else None
         
-        # 查找所有测试集ZIP文件
-        test_zips = glob.glob(os.path.join(data_dir, "ai_challenger_pdr2018_test*.zip"))
+        # 如果配置了自定义数据集路径，使用自定义路径
+        if custom_dataset_path:
+            source_dir = custom_dataset_path
+            logger.info(f"Using custom dataset path: {source_dir}")
+            
+            # 检查自定义路径是否存在
+            if not os.path.exists(source_dir):
+                logger.error(f"Custom dataset path does not exist: {source_dir}")
+                return
+                
+            # 从自定义路径查找数据集文件
+            train_zip = None
+            val_zip = None
+            test_zips = []
+            
+            # 递归搜索支持的文件格式
+            for root, _, files in os.walk(source_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    file_lower = file.lower()
+                    
+                    # 检查是否是支持的数据集格式
+                    is_supported = any(file_lower.endswith(ext) for ext in self.config.supported_dataset_formats)
+                    if not is_supported:
+                        continue
+                        
+                    # 识别数据集类型
+                    if self.config.training_dataset_file in file:
+                        train_zip = file_path
+                        logger.info(f"Found training dataset: {file_path}")
+                    elif self.config.validation_dataset_file in file:
+                        val_zip = file_path
+                        logger.info(f"Found validation dataset: {file_path}")
+                    elif "test" in file_lower:
+                        test_zips.append(file_path)
+                        logger.info(f"Found test dataset: {file_path}")
+            
+            # 如果没有找到数据集文件，尝试复制其他格式文件
+            if not (train_zip or val_zip or test_zips):
+                logger.warning(f"No dataset files found in custom path: {source_dir}")
+                logger.info(f"Looking for other supported formats: {self.config.supported_dataset_formats}")
+                
+                # 复制其他格式的数据文件
+                copied_files = 0
+                for root, _, files in os.walk(source_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        file_ext = os.path.splitext(file)[1].lower()
+                        
+                        # 检查是否是图像文件
+                        if file_ext in ['.jpg', '.jpeg', '.png']:
+                            if "train" in root.lower():
+                                # 提取类别信息
+                                try:
+                                    rel_path = os.path.relpath(root, source_dir)
+                                    class_parts = [p for p in rel_path.split(os.sep) if p.isdigit()]
+                                    if class_parts:
+                                        class_id = int(class_parts[0])
+                                        target_dir = os.path.join(self.paths.train_dir, str(class_id))
+                                        os.makedirs(target_dir, exist_ok=True)
+                                        shutil.copy2(file_path, os.path.join(target_dir, file))
+                                        copied_files += 1
+                                except Exception as e:
+                                    logger.error(f"Error copying training image: {str(e)}")
+                            elif "test" in root.lower():
+                                # 复制到测试目录
+                                try:
+                                    shutil.copy2(file_path, os.path.join(self.paths.test_images_dir, file))
+                                    copied_files += 1
+                                except Exception as e:
+                                    logger.error(f"Error copying test image: {str(e)}")
+                
+                if copied_files > 0:
+                    logger.info(f"Copied {copied_files} image files directly from custom dataset path")
+                    return
+                else:
+                    logger.error("No valid dataset files or images found in custom path")
+                    return
+        else:
+            # 使用默认路径
+            source_dir = data_dir
+            train_zip = os.path.join(data_dir, self.config.training_dataset_file)
+            val_zip = os.path.join(data_dir, self.config.validation_dataset_file)
+            test_zips = glob.glob(os.path.join(data_dir, self.config.test_name_pattern))
+            logger.info(f"Using default dataset path: {source_dir}")
         
         # 检查并解压训练集
-        if os.path.exists(train_zip):
+        if train_zip and os.path.exists(train_zip):
             self.extract_zip_file(train_zip, data_dir)
             train_dir = os.path.join(data_dir, "AgriculturalDisease_trainingset")
             
@@ -230,10 +318,10 @@ class DataPreparation:
                 shutil.copy2(annot_file, self.paths.temp_labels_dir)
                 logger.info(f"Copied training annotations file")
         else:
-            logger.warning(f"Training dataset zip not found: {train_zip}")
+            logger.warning(f"Training dataset zip not found: {train_zip if train_zip else 'No file specified'}")
         
         # 检查并解压验证集
-        if os.path.exists(val_zip):
+        if val_zip and os.path.exists(val_zip):
             self.extract_zip_file(val_zip, data_dir)
             val_dir = os.path.join(data_dir, "AgriculturalDisease_validationset")
             
@@ -248,7 +336,7 @@ class DataPreparation:
                 shutil.copy2(annot_file, self.paths.temp_labels_dir)
                 logger.info(f"Copied validation annotations file")
         else:
-            logger.warning(f"Validation dataset zip not found: {val_zip}")
+            logger.warning(f"Validation dataset zip not found: {val_zip if val_zip else 'No file specified'}")
         
         # 检查并解压所有测试集
         if test_zips:
@@ -257,7 +345,14 @@ class DataPreparation:
             for test_zip in test_zips:
                 # 创建文件名的唯一目录名称
                 zip_basename = os.path.basename(test_zip)
-                test_dir_suffix = zip_basename.split('_')[3].split('.')[0]  # 从文件名提取 testa 或 testb 部分
+                
+                # 尝试提取test数据集标识符
+                try:
+                    test_dir_suffix = zip_basename.split('_')[3].split('.')[0]  # 从文件名提取 testa 或 testb 部分
+                except:
+                    # 如果无法提取，使用文件名作为标识符
+                    test_dir_suffix = os.path.splitext(zip_basename)[0]
+                    
                 extracted_dir = os.path.join(data_dir, f"AgriculturalDisease_{test_dir_suffix}")
                 
                 # 解压测试集
@@ -281,10 +376,14 @@ class DataPreparation:
                 logger.info("Merging test datasets as per configuration")
                 self.merge_datasets(mode="test", force=True)
         else:
-            logger.warning(f"No test dataset zip files found in {data_dir}")
+            logger.warning(f"No test dataset zip files found")
             
         # 确保测试目录存在
         os.makedirs(self.paths.test_images_dir, exist_ok=True)
+        
+        # 如果启用了清理选项，删除临时解压目录
+        if cleanup_temp:
+            self.cleanup_temp_folders()
 
     def process_data(self) -> None:
         """处理数据集文件并组织到训练目录"""
@@ -353,123 +452,213 @@ class DataPreparation:
         
         logger.info(f"\nSuccessfully processed {success_count}/{len(file_list)} files")
 
-    def get_data_status(self) -> Dict[str, Any]:
-        """获取数据准备状态
+    def get_data_status(self) -> dict:
+        """获取数据准备的状态信息
         
         返回:
-            包含数据准备状态信息的字典
+            包含数据集状态信息的字典
         """
-        # 检查所需目录是否存在
-        train_dir_exists = os.path.exists(self.paths.train_dir)
-        test_dir_exists = os.path.exists(self.paths.test_dir)
-        temp_images_dir_exists = os.path.exists(self.paths.temp_images_dir)
-        temp_labels_dir_exists = os.path.exists(self.paths.temp_labels_dir)
-        aug_dir_exists = os.path.exists(self.paths.aug_dir)
-        merged_train_dir_exists = os.path.exists(self.paths.merged_train_dir)
-        merged_test_dir_exists = os.path.exists(self.paths.merged_test_dir)
-        merged_val_dir_exists = os.path.exists(self.paths.merged_val_dir)
+        status = {
+            "status": "success",
+            "datasets": {},
+            "dataset_extracted": False,
+            "data_processed": False,
+            "augmentation_completed": False,
+            "merged_datasets": False,
+            "zip_details": {},
+            "processed_details": {},
+            "merged_details": {},
+            "augmented_image_count": 0
+        }
         
-        # 检查重要文件是否存在
-        train_annotations_exists = os.path.exists(self.paths.train_annotations)
-        val_annotations_exists = os.path.exists(self.paths.val_annotations)
+        # 检查是否已提取数据集
+        try:
+            # 检查提取的数据集文件夹是否存在
+            status["dataset_extracted"] = os.path.exists(self.paths.temp_dataset_dir) and len(os.listdir(self.paths.temp_dataset_dir)) > 0
+            
+            # 检查训练、测试和验证目录
+            training_dir_exists = os.path.exists(os.path.join(self.paths.temp_dataset_dir, "AgriculturalDisease_trainingset"))
+            validation_dir_exists = os.path.exists(os.path.join(self.paths.temp_dataset_dir, "AgriculturalDisease_validationset"))
+            
+            status["zip_details"] = {
+                "training": training_dir_exists,
+                "validation": validation_dir_exists
+            }
+        except Exception as e:
+            logger.error(f"Error checking dataset extraction status: {str(e)}")
+            status["dataset_extracted"] = False
         
-        # 检查ZIP文件
-        zip_details = {}
-        zip_files = glob.glob(os.path.join(self.paths.data_dir, "*.zip"))
-        dataset_extracted = True
-        for zip_file in zip_files:
-            zip_name = os.path.basename(zip_file)
-            # 判断是否已解压
-            if "train" in zip_name and not train_dir_exists:
-                zip_details[zip_file] = False
-                dataset_extracted = False
-            elif "test" in zip_name and not test_dir_exists:
-                zip_details[zip_file] = False
-                dataset_extracted = False
-            elif "val" in zip_name and not os.path.exists(self.paths.val_dir):
-                zip_details[zip_file] = False
-                dataset_extracted = False
+        # 检查数据处理状态
+        try:
+            # 检查训练和测试目录是否有图像
+            train_processed = os.path.exists(self.paths.train_dir) and len(glob.glob(os.path.join(self.paths.train_dir, "**/*.jpg"), recursive=True)) > 0
+            test_processed = os.path.exists(self.paths.test_images_dir) and len(glob.glob(os.path.join(self.paths.test_images_dir, "*.jpg"))) > 0
+            
+            status["data_processed"] = train_processed or test_processed
+            status["processed_details"] = {
+                "training": train_processed,
+                "testing": test_processed
+            }
+        except Exception as e:
+            logger.error(f"Error checking data processing status: {str(e)}")
+            status["data_processed"] = False
+        
+        # 检查数据增强状态
+        try:
+            # 检查增强数据目录是否有图像
+            aug_dir_exists = os.path.exists(self.paths.augmented_images_dir)
+            if aug_dir_exists:
+                aug_images = glob.glob(os.path.join(self.paths.augmented_images_dir, "**/*.jpg"), recursive=True)
+                status["augmentation_completed"] = len(aug_images) > 0
+                status["augmented_image_count"] = len(aug_images)
             else:
-                zip_details[zip_file] = True
+                status["augmentation_completed"] = False
+                status["augmented_image_count"] = 0
+        except Exception as e:
+            logger.error(f"Error checking data augmentation status: {str(e)}")
+            status["augmentation_completed"] = False
         
-        # 计算训练集类别数量和测试集图像数量
-        training_class_count = 0
-        test_image_count = 0
-        augmented_image_count = 0
-        merged_train_class_count = 0
-        merged_test_image_count = 0
+        # 检查数据集合并状态
+        try:
+            # 检查合并目录是否存在
+            merged_train = os.path.exists(self.paths.merged_train_dir) and len(glob.glob(os.path.join(self.paths.merged_train_dir, "**/*.jpg"), recursive=True)) > 0
+            merged_test = os.path.exists(self.paths.merged_test_dir) and len(glob.glob(os.path.join(self.paths.merged_test_dir, "*.jpg"))) > 0
+            merged_val = os.path.exists(self.paths.merged_val_dir) and len(glob.glob(os.path.join(self.paths.merged_val_dir, "*.jpg"))) > 0
+            
+            status["merged_datasets"] = merged_train or merged_test or merged_val
+            status["merged_details"] = {
+                "training": merged_train,
+                "testing": merged_test,
+                "validation": merged_val
+            }
+        except Exception as e:
+            logger.error(f"Error checking dataset merging status: {str(e)}")
+            status["merged_datasets"] = False
         
-        if train_dir_exists:
-            training_class_count = len([d for d in os.listdir(self.paths.train_dir) 
-                                       if os.path.isdir(os.path.join(self.paths.train_dir, d))])
-        
-        if test_dir_exists:
-            test_patterns = ["*.jpg", "*.JPG", "*.png", "*.PNG"]
-            for pattern in test_patterns:
-                test_image_count += len(glob.glob(os.path.join(self.paths.test_images_dir, pattern)))
-        
-        if aug_dir_exists:
-            aug_patterns = ["*.jpg", "*.JPG", "*.png", "*.PNG"]
-            for pattern in aug_patterns:
-                augmented_image_count += len(glob.glob(os.path.join(self.paths.aug_train_dir, "**", pattern), recursive=True))
-        
-        # 计算合并后的数据集信息
-        if merged_train_dir_exists:
-            merged_train_class_count = len([d for d in os.listdir(self.paths.merged_train_dir) 
-                                           if os.path.isdir(os.path.join(self.paths.merged_train_dir, d))])
-        
-        if merged_test_dir_exists:
-            test_patterns = ["*.jpg", "*.JPG", "*.png", "*.PNG"]
-            for pattern in test_patterns:
-                merged_test_image_count += len(glob.glob(os.path.join(self.paths.merged_test_dir, pattern)))
-        
-        # 数据处理状态细节
-        processed_details = {
-            "train": train_dir_exists and training_class_count > 0,
-            "test": test_dir_exists and test_image_count > 0,
-            "annotations": train_annotations_exists and val_annotations_exists
+        # 检查各目录中的数据情况
+        data_dirs = {
+            "train": self.paths.train_dir,
+            "test": self.paths.test_dir,
+            "val": self.paths.val_dir,
+            "augmented": self.paths.aug_dir if hasattr(self.paths, "aug_dir") else None,
+            "merged_train": self.paths.merged_train_dir if config.merge_datasets else None,
+            "merged_test": self.paths.merged_test_dir if config.merge_datasets else None,
+            "merged_val": self.paths.merged_val_dir if config.merge_datasets else None
         }
         
-        # 合并数据集状态
-        merged_details = {
-            "train": merged_train_dir_exists and merged_train_class_count > 0,
-            "test": merged_test_dir_exists and merged_test_image_count > 0,
-            "val": merged_val_dir_exists
+        for name, path in data_dirs.items():
+            if path and os.path.exists(path):
+                # 计算目录中的文件数量
+                try:
+                    if os.path.isdir(path):
+                        if name == "train":
+                            # 递归统计训练目录中所有图像
+                            img_count = len(glob.glob(os.path.join(path, "**/*.jpg"), recursive=True))
+                            # 检查类别数量
+                            class_count = len([d for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))])
+                            status["datasets"][name] = {
+                                "path": path,
+                                "exists": True,
+                                "file_count": img_count,
+                                "class_count": class_count
+                            }
+                        else:
+                            # 非训练目录，直接统计文件数
+                            file_count = len([f for f in glob.glob(os.path.join(path, "*.jpg"))])
+                            status["datasets"][name] = {
+                                "path": path,
+                                "exists": True,
+                                "file_count": file_count
+                            }
+                    else:
+                        status["datasets"][name] = {
+                            "path": path,
+                            "exists": True,
+                            "file_count": 0,
+                            "error": "Path is not a directory"
+                        }
+                except Exception as e:
+                    status["datasets"][name] = {
+                        "path": path,
+                        "exists": True,
+                        "error": str(e)
+                    }
+            else:
+                status["datasets"][name] = {
+                    "path": path,
+                    "exists": False,
+                    "file_count": 0
+                }
+        
+        # 检查临时目录状态
+        temp_dir = self.paths.temp_dir
+        if os.path.exists(temp_dir):
+            try:
+                temp_files = os.listdir(temp_dir)
+                status["temp_dir"] = {
+                    "path": temp_dir,
+                    "exists": True,
+                    "file_count": len(temp_files),
+                    "files": temp_files[:10]  # 只列出前10个文件以避免过多数据
+                }
+                if len(temp_files) > 10:
+                    status["temp_dir"]["files"].append("... and more")
+            except Exception as e:
+                status["temp_dir"] = {
+                    "path": temp_dir,
+                    "exists": True,
+                    "error": str(e)
+                }
+        else:
+            status["temp_dir"] = {
+                "path": temp_dir,
+                "exists": False
+            }
+        
+        # 计算整体的训练图像数量
+        training_imgs = 0
+        if "train" in status["datasets"] and "file_count" in status["datasets"]["train"]:
+            training_imgs += status["datasets"]["train"]["file_count"]
+        if "merged_train" in status["datasets"] and "file_count" in status["datasets"]["merged_train"]:
+            training_imgs += status["datasets"]["merged_train"]["file_count"]
+        
+        status["training"] = {
+            "directory": self.paths.train_dir,
+            "total_images": training_imgs
         }
         
-        # 综合处理状态
-        data_processed = all(processed_details.values())
+        # 计算整体的测试图像数量
+        testing_imgs = 0
+        if "test" in status["datasets"] and "file_count" in status["datasets"]["test"]:
+            testing_imgs += status["datasets"]["test"]["file_count"]
+        if "merged_test" in status["datasets"] and "file_count" in status["datasets"]["merged_test"]:
+            testing_imgs += status["datasets"]["merged_test"]["file_count"]
         
-        # 数据增强状态
-        augmentation_completed = aug_dir_exists and augmented_image_count > 0
-        
-        # 数据集合并状态
-        merged_datasets = self.config.merge_datasets and all(list(merged_details.values())[:2])  # 只检查train和test
-        
-        return {
-            "training_dir": train_dir_exists,
-            "test_dir": test_dir_exists,
-            "temp_images_dir": temp_images_dir_exists,
-            "temp_labels_dir": temp_labels_dir_exists,
-            "train_annotations": train_annotations_exists,
-            "val_annotations": val_annotations_exists,
-            "training_class_count": training_class_count,
-            "test_image_count": test_image_count,
-            "augmented_image_count": augmented_image_count,
-            "dataset_extracted": dataset_extracted,
-            "data_processed": data_processed,
-            "processed_details": processed_details,
-            "augmentation_completed": augmentation_completed,
-            "aug_dir_exists": aug_dir_exists,
-            "zip_details": zip_details,
-            "merged_train_dir": merged_train_dir_exists,
-            "merged_test_dir": merged_test_dir_exists,
-            "merged_val_dir": merged_val_dir_exists,
-            "merged_train_class_count": merged_train_class_count,
-            "merged_test_image_count": merged_test_image_count,
-            "merged_details": merged_details,
-            "merged_datasets": merged_datasets
+        status["testing"] = {
+            "directory": self.paths.test_dir,
+            "total_images": testing_imgs
         }
+        
+        # 计算整体的验证图像数量
+        validation_imgs = 0
+        if "val" in status["datasets"] and "file_count" in status["datasets"]["val"]:
+            validation_imgs += status["datasets"]["val"]["file_count"]
+        if "merged_val" in status["datasets"] and "file_count" in status["datasets"]["merged_val"]:
+            validation_imgs += status["datasets"]["merged_val"]["file_count"]
+        
+        status["validation"] = {
+            "directory": self.paths.val_dir,
+            "total_images": validation_imgs
+        }
+        
+        # 检查配置信息
+        status["config"] = {
+            "use_data_aug": config.use_data_aug,
+            "merge_datasets": config.merge_datasets,
+            "custom_dataset_path": config.dataset_path if config.use_custom_dataset_path else None
+        }
+        
+        return status
 
     def check_data_status(self) -> None:
         """检查数据准备状态并输出信息"""
@@ -649,21 +838,64 @@ class DataPreparation:
             return
 
         logger.info("Checking for invalid images...")
-        removed_count = 0
-        error_count = 0
         
+        # 收集需要检查的图像文件
+        image_files = []
         for image_path in Path(image_dir).rglob('*'):
             if image_path.suffix.lower() in ['.jpg', '.jpeg', '.png']:
-                if not self.is_valid_image(str(image_path)):
-                    try:
-                        os.remove(str(image_path))
-                        removed_count += 1
-                        logger.info(f"Removed invalid image: {image_path}")
-                    except Exception as e:
-                        error_count += 1
-                        logger.error(f"Failed to remove {image_path}: {str(e)}")
-
-        logger.info(f"Removed {removed_count} invalid images")
+                image_files.append(str(image_path))
+        
+        if not image_files:
+            logger.info("No images found to check")
+            return
+        
+        # 初始化计数器和结果列表
+        total_files = len(image_files)
+        invalid_images = []
+        error_count = 0
+        
+        # 定义进度条更新函数
+        def check_image_batch(batch):
+            batch_invalid = []
+            for image_path in batch:
+                if not self.is_valid_image(image_path):
+                    batch_invalid.append(image_path)
+            return batch_invalid
+        
+        # 使用多线程并行验证图像
+        batch_size = 20  # 每个线程处理的批次大小
+        batches = [image_files[i:i + batch_size] for i in range(0, len(image_files), batch_size)]
+        
+        with ThreadPoolExecutor(max_workers=self.config.aug_max_workers) as executor:
+            futures = []
+            for batch in batches:
+                futures.append(executor.submit(check_image_batch, batch))
+            
+            # 使用tqdm显示进度条
+            for future in tqdm(concurrent.futures.as_completed(futures), 
+                              total=len(futures), 
+                              desc="Validating images", 
+                              unit="batch"):
+                batch_invalid = future.result()
+                invalid_images.extend(batch_invalid)
+        
+        # 删除无效图像
+        if invalid_images:
+            logger.info(f"Found {len(invalid_images)} invalid images, removing...")
+            removed_count = 0
+            
+            for invalid_path in tqdm(invalid_images, desc="Removing invalid images", unit="img"):
+                try:
+                    os.remove(invalid_path)
+                    removed_count += 1
+                except Exception as e:
+                    error_count += 1
+                    logger.error(f"Failed to remove {invalid_path}: {str(e)}")
+            
+            logger.info(f"Removed {removed_count}/{len(invalid_images)} invalid images")
+        else:
+            logger.info("No invalid images found")
+        
         if error_count > 0:
             logger.warning(f"Failed to remove {error_count} invalid images")
 
@@ -801,24 +1033,16 @@ class DataPreparation:
         """合并多个数据集到一个目录
         
         参数:
-            mode: 数据集模式 ('train', 'test', 或 'val')
-            force: 是否强制重新创建合并目录
+            mode: 数据集类型 'train', 'test' 或 'val'
+            force: 是否强制覆盖现有的合并目录
             
         返回:
             合并后的数据集路径
         """
-        # 如果在配置中禁用合并功能，则不执行合并
-        if not self.config.merge_datasets and not force:
-            logger.info(f"Dataset merging is disabled in configuration for {mode} mode")
-            # 根据模式返回默认路径
-            if mode == "train":
-                return self.config.train_data
-            elif mode == "test":
-                return self.config.test_data
-            else:
-                return self.config.val_data
-                
-        # 根据模式确定目标目录
+        logger.info(f"Merging {mode} datasets")
+        
+        # 定义合并目标路径
+        merged_path = None
         if mode == "train":
             merged_path = self.paths.merged_train_dir
         elif mode == "test":
@@ -826,31 +1050,40 @@ class DataPreparation:
         elif mode == "val":
             merged_path = self.paths.merged_val_dir
         else:
-            raise ValueError(f"Invalid mode: {mode}")
+            raise ValueError(f"Invalid mode: {mode}. Must be 'train', 'test', or 'val'")
         
-        # 如果请求强制重建，删除现有目录
-        force_merge = force or self.config.merge_force
-        if force_merge and os.path.exists(merged_path):
+        os.makedirs(merged_path, exist_ok=True)
+        
+        # 如果强制模式，清空目标目录
+        if force and os.path.exists(merged_path):
+            logger.info(f"Force flag set. Removing existing merged directory: {merged_path}")
             shutil.rmtree(merged_path)
-            logger.info(f"Removed existing merged directory: {merged_path}")
+            os.makedirs(merged_path, exist_ok=True)
         
-        # 检查目标目录是否已存在，如果存在且不是强制模式，直接返回
-        if os.path.exists(merged_path) and not force_merge:
-            logger.info(f"Using existing merged {mode} dataset: {merged_path}")
-            return merged_path
+        # 检查目标目录是否已经有文件，如果有则跳过合并
+        if not force and os.path.exists(merged_path):
+            file_count = 0
+            # 对于训练集，检查每个类别目录中的文件
+            if mode == "train":
+                class_dirs = [os.path.join(merged_path, d) for d in os.listdir(merged_path) if os.path.isdir(os.path.join(merged_path, d))]
+                for class_dir in class_dirs:
+                    file_count += len(glob.glob(os.path.join(class_dir, "*.*")))
+            else:
+                # 对于测试集和验证集，直接计算根目录中的文件
+                file_count = len(glob.glob(os.path.join(merged_path, "*.*")))
+            
+            if file_count > 0:
+                logger.info(f"Merged {mode} directory already contains {file_count} files. Use force=True to overwrite.")
+                return merged_path
         
-        # 获取可用数据集列表
-        datasets = handle_datasets(mode, list_only=True)
+        # 查找需要合并的数据集
+        datasets = handle_datasets(data_type=mode, list_only=True)
         
-        # 测试集特殊处理
+        # 如果是测试集和特定的主测试集
         if mode == "test" and not self.config.use_all_test_datasets:
-            # 过滤出指定的主要测试集
-            filtered_datasets = []
-            for dataset in datasets:
-                if self.config.primary_test_dataset in dataset:
-                    filtered_datasets.append(dataset)
-                    break
-                    
+            primary_test = self.config.primary_test_dataset
+            filtered_datasets = [d for d in datasets if primary_test in d]
+            
             if filtered_datasets:
                 datasets = filtered_datasets
                 logger.info(f"Using only primary test dataset: {self.config.primary_test_dataset}")
@@ -868,7 +1101,21 @@ class DataPreparation:
             else:
                 return self.config.val_data
         
-        if len(datasets) == 1 and not force_merge:
+        # 添加增强数据目录(仅训练集)
+        if mode == "train" and self.config.use_data_aug and self.config.merge_augmented_data:
+            aug_dir = self.paths.aug_train_dir
+            if os.path.exists(aug_dir):
+                # 检查增强目录是否有内容
+                aug_files = glob.glob(os.path.join(aug_dir, "**/*.*"), recursive=True)
+                if aug_files:
+                    logger.info(f"Adding augmented data directory to merge: {aug_dir}")
+                    # 确保不重复添加
+                    if aug_dir not in datasets:
+                        datasets.append(aug_dir)
+        
+        logger.info(f"Found {len(datasets)} {mode} datasets to merge")
+        
+        if len(datasets) == 1 and not force:
             logger.info(f"Only one {mode} dataset found, no merge needed: {datasets[0]}")
             return datasets[0]
         
@@ -876,13 +1123,25 @@ class DataPreparation:
         os.makedirs(merged_path, exist_ok=True)
         
         # 执行合并
-        logger.info(f"Merging {len(datasets)} {mode} datasets...")
+        logger.info(f"Merging {len(datasets)} {mode} datasets to {merged_path}")
+        
+        # 详细统计信息初始化
+        dataset_stats = {}
+        total_merged_files = 0
         
         if mode == "train":
             # 合并训练集：将所有类别目录下的图像复制到对应的merged目录
             for source_dir in datasets:
                 logger.info(f"Processing training dataset: {source_dir}")
-                for class_dir in os.listdir(source_dir):
+                source_name = os.path.basename(source_dir)
+                dataset_stats[source_name] = {"files": 0, "classes": {}}
+                
+                # 获取源目录中的所有类别目录
+                class_dirs = []
+                if os.path.isdir(source_dir):
+                    class_dirs = [d for d in os.listdir(source_dir) if os.path.isdir(os.path.join(source_dir, d))]
+                
+                for class_dir in class_dirs:
                     class_path = os.path.join(source_dir, class_dir)
                     if os.path.isdir(class_path):
                         # 创建目标类别目录
@@ -893,7 +1152,6 @@ class DataPreparation:
                         img_count = 0
                         for img in glob.glob(os.path.join(class_path, "*.jpg")) + glob.glob(os.path.join(class_path, "*.png")):
                             # 创建唯一的目标文件名
-                            source_name = os.path.basename(source_dir)
                             img_name = f"{source_name}_{os.path.basename(img)}"
                             target_path = os.path.join(target_class_dir, img_name)
                             
@@ -902,15 +1160,22 @@ class DataPreparation:
                                 shutil.copy2(img, target_path)
                                 img_count += 1
                         
-                        logger.info(f"  Copied {img_count} images from class {class_dir}")
+                        if img_count > 0:
+                            # 更新统计信息
+                            dataset_stats[source_name]["files"] += img_count
+                            dataset_stats[source_name]["classes"][class_dir] = img_count
+                            total_merged_files += img_count
+                            logger.info(f"  Copied {img_count} images from class {class_dir}")
         else:
             # 合并测试集或验证集：直接将所有图像复制到merged目录
             for source_dir in datasets:
                 logger.info(f"Processing {mode} dataset: {source_dir}")
+                source_name = os.path.basename(os.path.dirname(source_dir))
+                dataset_stats[source_name] = {"files": 0}
+                
                 img_count = 0
                 for img in glob.glob(os.path.join(source_dir, "*.jpg")) + glob.glob(os.path.join(source_dir, "*.png")):
                     # 创建唯一的目标文件名
-                    source_name = os.path.basename(os.path.dirname(source_dir))
                     img_name = f"{source_name}_{os.path.basename(img)}"
                     target_path = os.path.join(merged_path, img_name)
                     
@@ -919,14 +1184,47 @@ class DataPreparation:
                         shutil.copy2(img, target_path)
                         img_count += 1
                 
-                logger.info(f"  Copied {img_count} images")
+                if img_count > 0:
+                    # 更新统计信息
+                    dataset_stats[source_name]["files"] = img_count
+                    total_merged_files += img_count
+                    logger.info(f"  Copied {img_count} images")
         
-        # 计算合并后的文件数
-        jpg_count = len(glob.glob(os.path.join(merged_path, "**", "*.jpg"), recursive=True))
-        png_count = len(glob.glob(os.path.join(merged_path, "**", "*.png"), recursive=True))
-        total_files = jpg_count + png_count
+        # 计算合并后的文件数并验证
+        # 统计目标目录中的实际文件数
+        actual_file_count = 0
+        if mode == "train":
+            for root, _, files in os.walk(merged_path):
+                actual_file_count += len([f for f in files if f.endswith(('.jpg', '.png'))])
+        else:
+            actual_file_count = len([f for f in os.listdir(merged_path) if f.endswith(('.jpg', '.png'))])
         
-        logger.info(f"{mode.capitalize()} dataset merge completed: {merged_path} with {total_files} total files")
+        # 验证合并后的文件数量
+        if actual_file_count == 0:
+            logger.error(f"ERROR: Merged directory is empty: {merged_path}")
+            logger.error(f"Expected to merge {total_merged_files} files from {len(datasets)} datasets")
+            logger.error(f"Source datasets: {datasets}")
+            # 尝试查看目录是否真的创建了
+            if not os.path.exists(merged_path):
+                logger.error(f"Merged directory does not exist: {merged_path}")
+            return merged_path
+        
+        if actual_file_count != total_merged_files:
+            logger.warning(f"Warning: File count mismatch - copied {total_merged_files} files, but found {actual_file_count} files in merged directory")
+        
+        # 详细的合并汇总
+        logger.info(f"\n=== {mode.capitalize()} Dataset Merge Summary ===")
+        logger.info(f"Merged directory: {merged_path}")
+        logger.info(f"Total merged files: {actual_file_count}")
+        logger.info(f"Source datasets: {len(datasets)}")
+        for dataset_name, stats in dataset_stats.items():
+            logger.info(f"  - {dataset_name}: {stats['files']} files")
+            if 'classes' in stats and stats['classes']:
+                for class_name, count in stats['classes'].items():
+                    if count > 0:
+                        logger.info(f"    - Class {class_name}: {count} files")
+        
+        logger.info(f"{mode.capitalize()} dataset merge completed with {actual_file_count} total files")
         return merged_path
     
     def list_available_datasets(self) -> Dict[str, List[str]]:
@@ -943,9 +1241,9 @@ class DataPreparation:
         logger.info("Listing all available datasets:")
         
         datasets = {
-            "train": handle_datasets("train", list_only=True),
-            "test": handle_datasets("test", list_only=True),
-            "val": handle_datasets("val", list_only=True)
+            "train": handle_datasets(data_type="train", list_only=True),
+            "test": handle_datasets(data_type="test", list_only=True),
+            "val": handle_datasets(data_type="val", list_only=True)
         }
         
         # 恢复配置
@@ -953,54 +1251,430 @@ class DataPreparation:
         
         return datasets 
 
+    def cleanup_temp_folders(self) -> None:
+        """清理数据集解压后的临时文件夹，保留处理后的数据
+        
+        该方法会删除数据处理完成后不再需要的原始解压目录和临时文件夹，但保留已处理的数据
+        在删除前会进行安全检查，确保数据已经被正确处理
+        """
+        # 安全检查：确保训练数据目录已经准备好
+        if not os.path.exists(self.paths.train_dir) or len(glob.glob(os.path.join(self.paths.train_dir, '*/'))) < 10:
+            logger.warning("Training data directory does not exist or contains too few class folders. Skipping cleanup for safety.")
+            return
+        
+        # 安全检查：确保至少有一些图像已经被处理
+        train_image_count = len(glob.glob(os.path.join(self.paths.train_dir, '**/*.jpg'), recursive=True))
+        if train_image_count < 100:  # 假设至少应该有100张图像
+            logger.warning(f"Only {train_image_count} images found in training directory. Skipping cleanup for safety.")
+            return
+            
+        data_dir = self.paths.data_dir
+        temp_dirs_to_remove = [
+            os.path.join(data_dir, "AgriculturalDisease_trainingset"),
+            os.path.join(data_dir, "AgriculturalDisease_validationset"),
+            # 添加临时文件夹
+            self.paths.temp_dir,
+            self.paths.temp_images_dir,
+            self.paths.temp_labels_dir
+        ]
+        
+        # 添加所有可能的测试集目录
+        test_dirs = glob.glob(os.path.join(data_dir, "AgriculturalDisease_test*"))
+        temp_dirs_to_remove.extend(test_dirs)
+        
+        # 确保不会删除关键目录
+        safe_dirs = [
+            self.paths.train_dir,
+            self.paths.test_dir,
+            self.paths.val_dir,
+            self.paths.merged_train_dir,
+            self.paths.merged_test_dir,
+            self.paths.merged_val_dir,
+            self.paths.aug_dir
+        ]
+        
+        # 从删除列表中移除安全目录
+        temp_dirs_to_remove = [dir for dir in temp_dirs_to_remove if dir not in safe_dirs]
+        
+        removed_count = 0
+        for temp_dir in temp_dirs_to_remove:
+            if os.path.exists(temp_dir):
+                try:
+                    # 使用shutil.rmtree递归删除目录
+                    shutil.rmtree(temp_dir)
+                    logger.info(f"Removed temporary directory: {temp_dir}")
+                    removed_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to remove {temp_dir}: {str(e)}")
+        
+        if removed_count > 0:
+            logger.info(f"Cleanup completed: removed {removed_count} temporary directories")
+        else:
+            logger.info("No temporary directories found to clean up")
+
+    def find_dataset_file(self, filename, custom_path=None):
+        """
+        Find a dataset file in the custom path or the data directory.
+        
+        Args:
+            filename (str): The name of the dataset file to find
+            custom_path (str, optional): A custom path to look for the dataset file
+            
+        Returns:
+            str: The full path to the dataset file if found, otherwise None
+        """
+        logger = logging.getLogger('data_prep')
+        
+        # Check if a filename was provided
+        if not filename:
+            logger.warning("No filename provided to find_dataset_file")
+            return None
+        
+        found_in_custom_path = False
+        custom_file_path = None
+        
+        # First try the custom path if provided
+        if custom_path:
+            # Handle directory path or direct file path
+            if os.path.isdir(custom_path):
+                # Check if the file exists in the directory
+                potential_path = os.path.join(custom_path, filename)
+                if os.path.exists(potential_path):
+                    logger.info(f"Found dataset file {filename} in custom directory: {custom_path}")
+                    found_in_custom_path = True
+                    custom_file_path = potential_path
+                    return custom_file_path
+                    
+                # Also check if any file in the directory matches the supported formats
+                found_alternative = False
+                for file in os.listdir(custom_path):
+                    if any(file.endswith(ext) for ext in config.supported_dataset_formats):
+                        full_path = os.path.join(custom_path, file)
+                        logger.info(f"Found alternative dataset file in custom directory: {full_path}")
+                        found_in_custom_path = True
+                        custom_file_path = full_path
+                        found_alternative = True
+                        return custom_file_path
+                
+                if not found_alternative:
+                    logger.warning(f"Could not find {filename} or any supported dataset file in custom path: {custom_path}")
+        
+            # If custom_path is a direct file path
+            elif os.path.isfile(custom_path):
+                # Check if the file has a supported extension
+                if any(custom_path.endswith(ext) for ext in config.supported_dataset_formats):
+                    logger.info(f"Using custom dataset file: {custom_path}")
+                    found_in_custom_path = True
+                    custom_file_path = custom_path
+                    return custom_file_path
+                else:
+                    logger.warning(f"Custom path file exists but is not a supported format: {custom_path}")
+                    logger.info(f"Supported formats: {', '.join(config.supported_dataset_formats)}")
+            
+            # If custom_path doesn't exist
+            else:
+                logger.warning(f"Custom dataset path does not exist: {custom_path}")
+        
+        # If no custom path or nothing found in custom path, check default data directory
+        default_path = os.path.join(config.paths.data_dir, filename)
+        if os.path.exists(default_path):
+            if custom_path and not found_in_custom_path:
+                logger.warning(f"No data found in custom path. Falling back to default path: {default_path}")
+            else:
+                logger.info(f"Found dataset file in default data directory: {default_path}")
+            return default_path
+        
+        # If still not found, check if any file in the data directory matches the supported formats
+        if os.path.isdir(config.paths.data_dir):
+            for file in os.listdir(config.paths.data_dir):
+                if any(file.endswith(ext) for ext in config.supported_dataset_formats):
+                    full_path = os.path.join(config.paths.data_dir, file)
+                    if custom_path and not found_in_custom_path:
+                        logger.warning(f"No data found in custom path. Falling back to alternative file in default path: {full_path}")
+                    else:
+                        logger.info(f"Found alternative dataset file in data directory: {full_path}")
+                    return full_path
+        
+        # No dataset found anywhere
+        if custom_path:
+            logger.error(f"Could not find dataset file {filename} in custom path or default location")
+            logger.warning("Please ensure your dataset files are in the specified path or in the default data directory")
+        else:
+            logger.error(f"Could not find dataset file {filename} in any location")
+            logger.warning("Please download the dataset and place it in the data directory")
+        
+        return None
+
 # 创建一个模块级函数来初始化和运行数据准备
-def setup_data(extract=True, process=True, augment=True, status=True, merge=None):
-    """设置并处理数据
-    
-    参数:
-        extract: 是否执行解压缩步骤
-        process: 是否执行处理步骤
-        augment: 是否执行数据增强步骤
-        status: 是否检查状态
-        merge: 是否合并数据集，None表示使用配置中的设置
-    
-    返回:
-        包含完成状态的字典
+def setup_data(
+    extract=True,
+    process=True,
+    augment=True,
+    status=True,
+    merge=None,
+    cleanup_temp=False,
+    custom_dataset_path=None,
+    merge_augmented=None
+):
     """
+    Initialize and run data preparation tasks.
+    
+    Args:
+        extract (bool): Whether to extract the dataset
+        process (bool): Whether to process the images
+        augment (bool): Whether to augment the images
+        status (bool): Whether to check data status
+        merge (str): Dataset merge mode ('train', 'test', 'val', 'all', or None)
+        cleanup_temp (bool): Whether to clean up temporary folders
+        custom_dataset_path (str, optional): Path to custom dataset files
+        merge_augmented (bool, optional): Whether to merge augmented data with original data
+          
+    Returns:
+        dict: Dictionary containing results of data preparation
+    """
+    logger = logging.getLogger('DataPrep')
+    logger.info("Setting up data preparation...")
+    
+    result = {
+        "success": True,
+        "warnings": [],
+        "errors": [],
+        "data_status": {}
+    }
+    
+    # Override merge_augmented in config if specified
+    original_merge_augmented = config.merge_augmented_data
+    if merge_augmented is not None:
+        config.merge_augmented_data = merge_augmented
+        logger.info(f"Setting merge_augmented to {merge_augmented}")
+    
     try:
+        # Create data preparation object
         data_prep = DataPreparation()
         
-        if status:
-            # 首先检查数据状态
-            data_prep.check_data_status()
-        
+        # Extract dataset
         if extract:
-            # 解压数据集
-            data_prep.extract_dataset()
+            logger.info("Extracting dataset...")
+            training_file = config.training_dataset_file
+            validation_file = config.validation_dataset_file
             
-        if process:
-            # 处理数据集
-            data_prep.process_data()
-            
-        if augment and config.use_data_aug:
-            # 如果启用了数据增强，执行数据增强
-            data_prep.augment_directory()
-            
-        # 执行数据集合并
-        should_merge = merge if merge is not None else config.merge_on_startup
-        if should_merge:
-            logger.info("Merging datasets as configured...")
-            train_path = data_prep.merge_datasets(mode="train")
-            test_path = data_prep.merge_datasets(mode="test")
-            if os.path.exists(paths.val_dir):
-                val_path = data_prep.merge_datasets(mode="val")
-        else:
-            logger.info("Dataset merging skipped as per configuration or parameters")
-            
-        return {"completed": True}
+            try:
+                # Look for the training dataset
+                training_path = data_prep.find_dataset_file(training_file, custom_dataset_path)
+                if training_path:
+                    success = extract_dataset(training_path, paths.temp_dataset_dir)
+                    if not success:
+                        logger.error(f"Failed to extract training dataset from {training_path}")
+                        result["errors"].append(f"Failed to extract training dataset from {training_path}")
+                        result["success"] = False
+                else:
+                    logger.warning("Training dataset file not found. Skipping extraction.")
+                    result["warnings"].append("Training dataset file not found. Skipping extraction.")
+                
+                # Look for the validation dataset
+                validation_path = data_prep.find_dataset_file(validation_file, custom_dataset_path)
+                if validation_path:
+                    success = extract_dataset(validation_path, paths.temp_dataset_dir)
+                    if not success:
+                        logger.error(f"Failed to extract validation dataset from {validation_path}")
+                        result["errors"].append(f"Failed to extract validation dataset from {validation_path}")
+                        result["success"] = False
+                else:
+                    logger.warning("Validation dataset file not found. Skipping extraction.")
+                    result["warnings"].append("Validation dataset file not found. Skipping extraction.")
+                
+                if not training_path and not validation_path:
+                    # Check if we already have extracted data
+                    if os.path.exists(paths.temp_dataset_dir) and os.listdir(paths.temp_dataset_dir):
+                        logger.info(f"No dataset files found but temp directory exists with data, continuing with existing data")
+                    else:
+                        logger.error("No dataset files found and no existing extracted data. Cannot proceed with data preparation.")
+                        result["errors"].append("No dataset files found and no existing extracted data.")
+                        result["success"] = False
+                
+            except Exception as e:
+                logger.error(f"Error during dataset extraction: {str(e)}")
+                result["errors"].append(f"Error during dataset extraction: {str(e)}")
+                result["success"] = False
+        
+        # Process data
+        if process and result["success"]:
+            logger.info("Processing data...")
+            try:
+                data_prep.process_data()
+            except Exception as e:
+                logger.error(f"Error during data processing: {str(e)}")
+                result["errors"].append(f"Error during data processing: {str(e)}")
+                result["success"] = False
+        
+        # Augment data
+        if augment and result["success"]:
+            logger.info("Augmenting data...")
+            try:
+                # Check if we have enough training data first
+                data_status = data_prep.get_data_status()
+                
+                if data_status.get("training", {}).get("total_images", 0) > 0:
+                    train_path = os.path.join(paths.train_images_dir, "train")
+                    augmented_dir = paths.augmented_images_dir
+                    
+                    # Create directory if it doesn't exist
+                    if not os.path.exists(augmented_dir):
+                        os.makedirs(augmented_dir, exist_ok=True)
+                    
+                    data_prep.augment_directory(train_path, augmented_dir)
+                    
+                    # Merge augmented data with original if configured
+                    if config.merge_augmented_data:
+                        logger.info("Merging augmented data with original training data...")
+                        try:
+                            # Copy augmented images back to training directory
+                            if os.path.exists(augmented_dir) and os.listdir(augmented_dir):
+                                num_copied = data_prep.copy_files_to_folder(
+                                    augmented_dir, train_path, file_pattern="*.*"
+                                )
+                                logger.info(f"Merged {num_copied} augmented images into training dataset")
+                            else:
+                                logger.warning("No augmented data found to merge")
+                                result["warnings"].append("No augmented data found to merge")
+                        except Exception as e:
+                            logger.error(f"Error merging augmented data: {str(e)}")
+                            result["warnings"].append(f"Error merging augmented data: {str(e)}")
+                    else:
+                        logger.info("Augmented data kept separate from original data (merge_augmented=False)")
+                else:
+                    logger.warning("No training images found, skipping augmentation")
+                    result["warnings"].append("No training images found, skipping augmentation")
+            except Exception as e:
+                logger.error(f"Error during data augmentation: {str(e)}")
+                result["warnings"].append(f"Error during data augmentation: {str(e)}")
+        
+        # Merge datasets if specified
+        if merge and result["success"]:
+            logger.info(f"Merging datasets: {merge}")
+            try:
+                if merge == "train" or merge == "all":
+                    data_prep.merge_datasets("train", force=config.merge_force)
+                    
+                if merge == "test" or merge == "all":
+                    data_prep.merge_datasets("test", force=config.merge_force)
+                    
+                if merge == "val" or merge == "all":
+                    data_prep.merge_datasets("val", force=config.merge_force)
+            except Exception as e:
+                logger.error(f"Error during dataset merging: {str(e)}")
+                result["warnings"].append(f"Error during dataset merging: {str(e)}")
+        
+        # Check data status if requested
+        if status:
+            logger.info("Checking data status...")
+            try:
+                data_status = data_prep.get_data_status()
+                result["data_status"] = data_status
+                
+                # Check for potential issues
+                if data_status.get("training", {}).get("total_images", 0) < 100:
+                    logger.warning("Very few training images detected (<100). This may lead to poor model performance.")
+                    result["warnings"].append("Very few training images detected (<100). This may lead to poor model performance.")
+                
+                if data_status.get("training", {}).get("total_images", 0) == 0:
+                    logger.error("No training images found. Cannot train the model.")
+                    result["errors"].append("No training images found. Cannot train the model.")
+                    result["success"] = False
+                
+                # Print the status details
+                data_prep.check_data_status()
+                
+                # Check for corrupted images
+                logger.info("Checking for corrupted images...")
+                for dataset_type in ["training", "validation", "testing"]:
+                    if dataset_type in data_status and "directory" in data_status[dataset_type]:
+                        directory = data_status[dataset_type]["directory"]
+                        if os.path.exists(directory):
+                            data_prep.remove_error_images(directory)
+            except Exception as e:
+                logger.error(f"Error checking data status: {str(e)}")
+                result["errors"].append(f"Error checking data status: {str(e)}")
+                result["success"] = False
+        
+        # Clean up temporary folders if requested
+        if cleanup_temp and result["success"]:
+            logger.info("Cleaning up temporary folders...")
+            try:
+                data_prep.cleanup_temp_folders()
+            except Exception as e:
+                logger.error(f"Error cleaning up temporary folders: {str(e)}")
+                result["warnings"].append(f"Error cleaning up temporary folders: {str(e)}")
+    
     except Exception as e:
-        logger.error(f"Error in setup_data: {str(e)}")
-        return {"completed": False, "error": str(e)}
+        logger.error(f"Unexpected error during data preparation: {str(e)}")
+        result["errors"].append(f"Unexpected error during data preparation: {str(e)}")
+        result["success"] = False
+    
+    # Restore original merge_augmented value
+    if merge_augmented is not None:
+        config.merge_augmented_data = original_merge_augmented
+    
+    # Final status
+    if result["success"]:
+        logger.info("Data preparation completed successfully")
+    else:
+        logger.error("Data preparation completed with errors")
+    
+    return result
+
+def extract_dataset(dataset_path, extract_to):
+    """
+    Extract dataset from zip, rar, tar, gz, or tgz file
+    
+    Args:
+        dataset_path (str): Path to the dataset file
+        extract_to (str): Directory to extract to
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    logger = logging.getLogger("DataPrep")
+    
+    try:
+        if not os.path.exists(extract_to):
+            os.makedirs(extract_to, exist_ok=True)
+        
+        logger.info(f"Extracting {dataset_path} to {extract_to}")
+        
+        # Extract based on file extension
+        if dataset_path.endswith('.zip'):
+            with zipfile.ZipFile(dataset_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_to)
+                
+        elif dataset_path.endswith('.rar'):
+            try:
+                import rarfile
+                with rarfile.RarFile(dataset_path) as rf:
+                    rf.extractall(extract_to)
+            except ImportError:
+                logger.error("rarfile module not installed. Please install it to extract RAR files.")
+                return False
+                
+        elif dataset_path.endswith('.tar'):
+            with tarfile.open(dataset_path, 'r') as tar_ref:
+                tar_ref.extractall(extract_to)
+                
+        elif dataset_path.endswith('.gz') or dataset_path.endswith('.tgz'):
+            with tarfile.open(dataset_path, 'r:gz') as tar_ref:
+                tar_ref.extractall(extract_to)
+                
+        else:
+            supported_formats = ', '.join(config.supported_dataset_formats)
+            logger.error(f"Unsupported file format. Supported formats: {supported_formats}")
+            return False
+            
+        logger.info(f"Successfully extracted {dataset_path}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error extracting dataset {dataset_path}: {str(e)}")
+        return False
 
 def merge_datasets_cli():
     """数据集合并命令行界面，提供与原merge_datasets.py相同的功能"""
@@ -1062,6 +1736,7 @@ if __name__ == "__main__":
     parser.add_argument('--test', action='store_true', help='Test data preparation functionality')
     parser.add_argument('--disable-merge', action='store_true', help='Disable dataset merging')
     parser.add_argument('--all', action='store_true', help='Run all data preparation steps')
+    parser.add_argument('--custom-dataset', type=str, help='Specify custom dataset path')
     
     args = parser.parse_args()
     
@@ -1131,7 +1806,8 @@ if __name__ == "__main__":
             process=do_process,
             augment=do_augment, 
             status=do_status,
-            merge=do_merge
+            merge=do_merge,
+            custom_dataset_path=args.custom_dataset
         )
     
     # 如果存在dataset_merge命令行参数
@@ -1140,4 +1816,5 @@ if __name__ == "__main__":
     
     # 默认情况下，执行完整流程
     else:
-        setup_data(extract=True, process=True, augment=True, status=True, merge=None) 
+        custom_dataset_path = args.custom_dataset if hasattr(args, 'custom_dataset') else None
+        setup_data(extract=True, process=True, augment=True, status=True, merge=None, custom_dataset_path=custom_dataset_path) 

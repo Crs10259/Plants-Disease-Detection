@@ -231,8 +231,8 @@ class Trainer:
                     precision1_train, precision2_train = accuracy(output, target, topk=(1, 2))
                     
                 train_losses.update(loss.item(), input.size(0))
-                train_top1.update(precision1_train[0], input.size(0))
-                train_top2.update(precision2_train[0], input.size(0))
+                train_top1.update(precision1_train.item(), input.size(0))
+                train_top2.update(precision2_train.item(), input.size(0))
                 
                 # Calculate batch time
                 batch_time = timer() - batch_start
@@ -450,7 +450,7 @@ class Trainer:
                 # Measure accuracy and record loss
                 prec1, _ = accuracy(output, target, topk=(1, 2))
                 val_losses.update(loss.item(), input.size(0))
-                val_top1.update(prec1[0], input.size(0))
+                val_top1.update(prec1.item(), input.size(0))
                 
                 # Update progress bar
                 pbar.set_postfix({
@@ -484,7 +484,7 @@ class Trainer:
         # This will automatically handle merged datasets if merging is enabled
         if not train_path:
             # This function handles dataset merging automatically
-            train_path = handle_datasets(mode="train")
+            train_path = handle_datasets(data_type="train")
             self.logger.info(f"Using training data from: {train_path}")
             
         # Get files from the selected data source

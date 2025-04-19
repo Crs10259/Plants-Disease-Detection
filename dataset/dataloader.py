@@ -212,7 +212,7 @@ def get_files(root, mode):
         包含文件路径和标签的DataFrame
     """
     # 处理多数据集情况，获取实际使用的数据集路径
-    actual_root = handle_datasets(mode)
+    actual_root = handle_datasets(data_type=mode)
     
     if not os.path.exists(actual_root):
         raise FileNotFoundError(f"Directory not found: {actual_root}")
