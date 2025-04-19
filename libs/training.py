@@ -463,37 +463,42 @@ class Trainer:
     def _get_train_loader(self):
         """Create and return training data loader based on configuration settings
         
-        Returns the appropriate dataloader based on:
-        1. If data augmentation is enabled, it uses the augmented data path
-        2. For merging, the handle_datasets function automatically handles dataset selection
+        Returns the appropriate dataloader based on merged dataset if available,
+        otherwise falls back to the best available dataset.
         """
-        # Determine the appropriate data source based on configuration
-        train_path = None
+        # 使用handle_datasets函数获取适当的训练数据路径
+        # 该函数已经修改为优先使用合并的数据集(如果有)，否则使用配置策略选择单个数据集
+        train_path = handle_datasets(data_type="train")
         
-        # If data augmentation is enabled and the augmented directory exists with files, use it
-        if self.config.use_data_aug and os.path.exists(self.config.aug_target_path):
-            # Check if the augmented directory has files
-            aug_files = glob.glob(os.path.join(self.config.aug_target_path, "**/*.jpg"), recursive=True)
-            aug_files.extend(glob.glob(os.path.join(self.config.aug_target_path, "**/*.png"), recursive=True))
-            
-            if aug_files:
-                self.logger.info(f"Using augmented training data from: {self.config.aug_target_path}")
-                train_path = self.config.aug_target_path
+        self.logger.info(f"Using training data from: {train_path}")
         
-        # If not using augmented data, let handle_datasets choose the appropriate source
-        # This will automatically handle merged datasets if merging is enabled
-        if not train_path:
-            # This function handles dataset merging automatically
-            train_path = handle_datasets(data_type="train")
-            self.logger.info(f"Using training data from: {train_path}")
-            
-        # Get files from the selected data source
+        # 检查数据集是否存在
+        if not os.path.exists(train_path):
+            self.logger.error(f"Training data path does not exist: {train_path}")
+            if os.path.exists(self.config.train_data):
+                self.logger.info(f"Falling back to default training data: {self.config.train_data}")
+                train_path = self.config.train_data
+            else:
+                raise FileNotFoundError(f"Cannot find training data at {train_path} or {self.config.train_data}")
+        
+        # 检查目录中是否有图像文件
+        image_files = 0
+        for root, _, files in os.walk(train_path):
+            for file in files:
+                if file.lower().endswith(('.jpg', '.jpeg', '.png')):
+                    image_files += 1
+        
+        if image_files == 0:
+            self.logger.error(f"No image files found in training path: {train_path}")
+            raise ValueError(f"No training images found in {train_path}")
+        
+        # 获取数据集文件列表
         train_files = get_files(train_path, mode="train")
         
-        # Log the number of training files
+        # 记录训练文件数量
         self.logger.info(f"Training dataset contains {len(train_files)} images")
         
-        # Create dataset and dataloader
+        # 创建数据集和数据加载器
         train_dataset = PlantDiseaseDataset(train_files, train=True)
         return DataLoader(
             train_dataset, 

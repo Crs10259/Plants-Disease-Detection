@@ -115,7 +115,7 @@ class DefaultConfigs:
     supported_dataset_formats: Tuple[str, ...] = ('.zip', '.rar', '.tar', '.gz', '.tgz')  # 支持的数据集格式
     
     # 数据集合并配置 Dataset Merging Configuration
-    merge_datasets: bool = False  # 是否合并多个数据集
+    merge_datasets: bool = False  # 是否合并多个数据集，目前处于测试版
     dataset_to_use: str = "auto"  # 不合并时选择使用哪个数据集: "auto"(最大的), "first", "last", "specific"
     specific_dataset: str = ""  # 指定使用的数据集名称，当dataset_to_use="specific"时有效
     duplicate_test_to_common: bool = True  # 是否将测试集复制到通用测试目录

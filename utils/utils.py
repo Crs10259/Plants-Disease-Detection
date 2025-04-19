@@ -557,7 +557,7 @@ def handle_datasets(data_type: str = "train", list_only: bool = False) -> Union[
     
     参数:
         data_type: 数据集类型 'train', 'test' 或 'val'
-        list_only: 是否只返回数据集列表而不执行合并
+        list_only: 是否只返回数据集列表而不选择单个数据集
         
     返回:
         最终使用的数据集路径或数据集路径列表
@@ -567,12 +567,49 @@ def handle_datasets(data_type: str = "train", list_only: bool = False) -> Union[
     
     # 查找所有相关的数据集目录
     if data_type == "train":
-        target_dirs = [d for d in glob.glob(f"{base_dir}/**/train", recursive=True)]
+        # 检查合并目录是否存在且有内容
+        if config.merge_datasets and os.path.exists(paths.merged_train_dir):
+            merged_files = glob.glob(os.path.join(paths.merged_train_dir, "**", "*.*"), recursive=True)
+            if merged_files:
+                if not list_only:
+                    logger.info(f"Using merged training dataset: {paths.merged_train_dir}")
+                    return paths.merged_train_dir
+                else:
+                    # 如果只是列出所有数据集，则包含合并目录
+                    target_dirs.append(paths.merged_train_dir)
+        
+        # 搜索训练数据集目录
+        train_dirs = [d for d in glob.glob(f"{base_dir}/**/train", recursive=True)]
+        target_dirs.extend(train_dirs)
+        
+        # 检查增强数据目录
+        if config.use_data_aug and os.path.exists(paths.aug_train_dir):
+            aug_files = glob.glob(os.path.join(paths.aug_train_dir, "**", "*.*"), recursive=True)
+            if aug_files:
+                if not list_only:
+                    logger.info(f"Found augmented training data: {paths.aug_train_dir}")
+                
+                # 如果只是列出所有数据集或者需要合并增强数据，则包含增强目录
+                if list_only or config.merge_augmented_data:
+                    if paths.aug_train_dir not in target_dirs:
+                        target_dirs.append(paths.aug_train_dir)
+                        
     elif data_type == "test":
+        # 检查合并目录是否存在且有内容
+        if config.merge_datasets and os.path.exists(paths.merged_test_dir):
+            merged_files = glob.glob(os.path.join(paths.merged_test_dir, "*.*"))
+            if merged_files:
+                if not list_only:
+                    logger.info(f"Using merged test dataset: {paths.merged_test_dir}")
+                    return paths.merged_test_dir
+                else:
+                    # 如果只是列出所有数据集，则包含合并目录
+                    target_dirs.append(paths.merged_test_dir)
+        
         # 查找所有测试目录，包括子目录
         test_dirs = [d for d in glob.glob(f"{base_dir}/**/test/images", recursive=True)]
         test_specific_dirs = [d for d in glob.glob(f"{base_dir}/test/*", recursive=False) if os.path.isdir(d)]
-        target_dirs = test_dirs + test_specific_dirs
+        target_dirs.extend(test_dirs + test_specific_dirs)
         
         # 如果设置了不使用所有测试集，则过滤只保留指定的测试集
         if not config.use_all_test_datasets and not list_only:
@@ -586,8 +623,22 @@ def handle_datasets(data_type: str = "train", list_only: bool = False) -> Union[
                 logger.info(f"Using only test dataset matching '{config.primary_test_dataset}'")
             else:
                 logger.warning(f"No test dataset matching '{config.primary_test_dataset}' found, using all available")
+                
     elif data_type == "val":
-        target_dirs = [d for d in glob.glob(f"{base_dir}/**/val", recursive=True)]
+        # 检查合并目录是否存在且有内容
+        if config.merge_datasets and os.path.exists(paths.merged_val_dir):
+            merged_files = glob.glob(os.path.join(paths.merged_val_dir, "*.*"))
+            if merged_files:
+                if not list_only:
+                    logger.info(f"Using merged validation dataset: {paths.merged_val_dir}")
+                    return paths.merged_val_dir
+                else:
+                    # 如果只是列出所有数据集，则包含合并目录
+                    target_dirs.append(paths.merged_val_dir)
+        
+        # 搜索验证数据集目录
+        val_dirs = [d for d in glob.glob(f"{base_dir}/**/val", recursive=True)]
+        target_dirs.extend(val_dirs)
     
     logger.info(f"Found {len(target_dirs)} {data_type} datasets: {target_dirs}")
     
@@ -610,128 +661,34 @@ def handle_datasets(data_type: str = "train", list_only: bool = False) -> Union[
         return target_dirs[0]
     
     # 多个数据集时的处理逻辑
-    if config.merge_datasets:
-        logger.info(f"Merging multiple {data_type} datasets...")
-        
-        # 定义合并后的目标目录
-        if data_type == "train":
-            merged_dir = paths.merged_train_dir
-        elif data_type == "test":
-            merged_dir = paths.merged_test_dir
-        else:
-            merged_dir = paths.merged_val_dir
-            
-        # 如果目录已存在且不是强制模式，直接返回
-        if os.path.exists(merged_dir) and not config.merge_force:
-            logger.info(f"Using existing merged {data_type} dataset: {merged_dir}")
-            return merged_dir
-            
-        # 确保目录存在
-        os.makedirs(merged_dir, exist_ok=True)
-        
-        # 获取目录中现有的文件数量
-        existing_files = len(glob.glob(os.path.join(merged_dir, "**", "*.*"), recursive=True))
-        if existing_files > 0 and not config.merge_force:
-            logger.info(f"Merged directory already contains {existing_files} files, skipping merge")
-            return merged_dir
-        
-        # 执行合并
-        logger.info(f"Starting to merge {len(target_dirs)} {data_type} datasets to {merged_dir}")
-        
-        # 合并数据集
-        if data_type == "train":
-            # 对于训练集，需要按类别目录合并
-            for source_dir in target_dirs:
-                for class_dir in os.listdir(source_dir):
-                    class_path = os.path.join(source_dir, class_dir)
-                    if os.path.isdir(class_path):
-                        # 创建目标类别目录
-                        target_class_dir = os.path.join(merged_dir, class_dir)
-                        os.makedirs(target_class_dir, exist_ok=True)
-                        
-                        # 复制图像文件
-                        img_count = 0
-                        for img in glob.glob(os.path.join(class_path, "*.jpg")) + glob.glob(os.path.join(class_path, "*.png")):
-                            # 创建唯一文件名
-                            source_name = os.path.basename(source_dir)
-                            img_name = f"{source_name}_{os.path.basename(img)}"
-                            target_path = os.path.join(target_class_dir, img_name)
-                            
-                            # 复制文件（如果不存在）
-                            if not os.path.exists(target_path):
-                                shutil.copy2(img, target_path)
-                                img_count += 1
-                        
-                        if img_count > 0:
-                            logger.info(f"  Copied {img_count} images from {source_dir} to class {class_dir}")
-        else:
-            # 对于测试集和验证集，直接合并所有图像
-            for source_dir in target_dirs:
-                # 确定源目录名称，用于创建唯一文件名
-                if "test" in source_dir:
-                    # 提取测试集名称，可能是 "testa" 或 "testb" 等
-                    dir_parts = source_dir.split(os.path.sep)
-                    if "test" in dir_parts:
-                        test_idx = dir_parts.index("test")
-                        if test_idx + 1 < len(dir_parts):
-                            source_name = dir_parts[test_idx + 1]
-                        else:
-                            source_name = "test"
-                    else:
-                        source_name = os.path.basename(os.path.dirname(source_dir))
-                else:
-                    source_name = os.path.basename(os.path.dirname(source_dir))
-                
-                # 复制所有图像文件
-                img_count = 0
-                for img in glob.glob(os.path.join(source_dir, "*.jpg")) + glob.glob(os.path.join(source_dir, "*.png")):
-                    img_name = f"{source_name}_{os.path.basename(img)}"
-                    target_path = os.path.join(merged_dir, img_name)
-                    
-                    # 复制文件（如果不存在）
-                    if not os.path.exists(target_path):
-                        shutil.copy2(img, target_path)
-                        img_count += 1
-                
-                if img_count > 0:
-                    logger.info(f"  Copied {img_count} images from {source_dir}")
-        
-        # 统计合并后的文件数
-        jpg_count = len(glob.glob(os.path.join(merged_dir, "**", "*.jpg"), recursive=True))
-        png_count = len(glob.glob(os.path.join(merged_dir, "**", "*.png"), recursive=True))
-        merged_files = jpg_count + png_count
-        
-        logger.info(f"Datasets merged to: {merged_dir} with {merged_files} total files")
-        return merged_dir
-    else:
-        # 根据策略选择一个数据集
-        selected_dir = None
-        
-        if config.dataset_to_use == "first":
-            selected_dir = target_dirs[0]
-            logger.info(f"Selected first {data_type} dataset: {selected_dir}")
-        
-        elif config.dataset_to_use == "last":
-            selected_dir = target_dirs[-1]
-            logger.info(f"Selected last {data_type} dataset: {selected_dir}")
-        
-        elif config.dataset_to_use == "specific":
-            # 查找特定名称的数据集
-            for dir_path in target_dirs:
-                if config.specific_dataset in dir_path:
-                    selected_dir = dir_path
-                    logger.info(f"Found specified {data_type} dataset: {selected_dir}")
-                    break
-            if selected_dir is None:
-                logger.warning(f"Could not find specified {data_type} dataset: {config.specific_dataset}, using largest dataset instead")
-                selected_dir = max(target_dirs, key=lambda d: len(glob.glob(os.path.join(d, "**/*"), recursive=True)))
-        
-        else:  # "auto" 或其他未知选项
-            # 使用文件数量最多的数据集
+    # 根据策略选择一个数据集
+    selected_dir = None
+    
+    if config.dataset_to_use == "first":
+        selected_dir = target_dirs[0]
+        logger.info(f"Selected first {data_type} dataset: {selected_dir}")
+    
+    elif config.dataset_to_use == "last":
+        selected_dir = target_dirs[-1]
+        logger.info(f"Selected last {data_type} dataset: {selected_dir}")
+    
+    elif config.dataset_to_use == "specific":
+        # 查找特定名称的数据集
+        for dir_path in target_dirs:
+            if config.specific_dataset in dir_path:
+                selected_dir = dir_path
+                logger.info(f"Found specified {data_type} dataset: {selected_dir}")
+                break
+        if selected_dir is None:
+            logger.warning(f"Could not find specified {data_type} dataset: {config.specific_dataset}, using largest dataset instead")
             selected_dir = max(target_dirs, key=lambda d: len(glob.glob(os.path.join(d, "**/*"), recursive=True)))
-            logger.info(f"Auto-selected largest {data_type} dataset: {selected_dir}")
-        
-        return selected_dir
+    
+    else:  # "auto" 或其他未知选项
+        # 使用文件数量最多的数据集
+        selected_dir = max(target_dirs, key=lambda d: len(glob.glob(os.path.join(d, "**/*"), recursive=True)))
+        logger.info(f"Auto-selected largest {data_type} dataset: {selected_dir}")
+    
+    return selected_dir
 
 def test_dataset_handling():
     """测试数据集处理功能"""
