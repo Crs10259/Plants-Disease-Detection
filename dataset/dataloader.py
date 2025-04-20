@@ -87,12 +87,12 @@ class PlantDiseaseDataset(Dataset):
             返回:
                 (是否有效, 图像数据)元组
             """
-                try:
-                    filename = img_data[0]
+            try:
+                 filename = img_data[0]
                 # 只验证文件头，不完整加载图像
-                    with Image.open(filename) as img:
+                 with Image.open(filename) as img:
                     img.verify()
-                return True, img_data
+                    return True, img_data
             except Exception:
                 return False, img_data
         
@@ -169,17 +169,17 @@ class PlantDiseaseDataset(Dataset):
             (图像张量, 标签)或(图像张量, 文件名)
         """
         try:
-        if self.test:
-            filename = self.imgs[index]
+            if self.test:
+                filename = self.imgs[index]
                 img = Image.open(filename)
                 img_tensor = self.transforms(img)
                 return img_tensor, filename
-        else:
+            else:
                 filename, label = self.imgs[index]
                 img = Image.open(filename)
                 img_tensor = self.transforms(img)
                 return img_tensor, label
-            except Exception as e:
+        except Exception as e:
             print(f"Error loading image at index {index}: {str(e)}")
             # 返回空张量作为错误处理
             return (torch.zeros((3, config.img_height, config.img_weight)), 

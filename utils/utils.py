@@ -6,18 +6,24 @@ import json
 import numpy as np
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple, Union, Optional, Any, Set, Type
+from typing import Dict, List, Tuple, Union, Optional, Any, Set, Type, TYPE_CHECKING
 from config.config import config, paths
 from torch import nn
 import torch.nn.functional as F
 from timm.scheduler.cosine_lr import CosineLRScheduler
-from timm.utils import ModelEmaV2
 from torch.optim.lr_scheduler import OneCycleLR
 from datetime import datetime
 import glob
 import random
 import time
 import warnings
+from torch.optim import *
+from torch.utils.data import DataLoader
+import math
+import io
+import re
+from tqdm import tqdm
+from timm.utils import ModelEmaV2 as TimmModelEmaV2
 
 # 设置日志
 logging.basicConfig(
@@ -32,6 +38,100 @@ logger = logging.getLogger('Utils')
 
 # 忽略特定警告
 warnings.filterwarnings("ignore", category=UserWarning)
+
+# Custom ModelEmaV2 implementation that is compatible with all timm versions
+class CustomModelEmaV2:
+    """ Model Exponential Moving Average V2
+    
+    Custom implementation that mimics timm's ModelEmaV2 but is compatible with all versions.
+    """
+    def __init__(self, model, decay=0.9999, device=None):
+        """
+        Args:
+            model (nn.Module): model to apply EMA to
+            decay (float): decay factor for EMA
+            device (torch.device): device to use for model/EMA
+        """
+        # make a copy of the model for accumulating moving average of weights
+        self.module = self._create_deep_copy(model, device)
+        self.module.eval()
+        self.decay = decay
+        self.device = device
+        if device is not None:
+            self.module.to(device)
+
+    def _create_deep_copy(self, model, device=None):
+        """Create a deep copy of the model on the specified device"""
+        model_copy = type(model)() if hasattr(model, '__new__') else model.__new__(type(model))
+        
+        # Initialize the copy with the same attributes
+        model_copy.__dict__ = {k: v for k, v in model.__dict__.items() if k != '_parameters' and k != '_buffers' and k != '_modules'}
+        model_copy._parameters = model._parameters.copy()
+        model_copy._buffers = model._buffers.copy()
+        model_copy._modules = type(model._modules)()
+        
+        # Copy modules recursively
+        for name, module in model._modules.items():
+            if module is not None:
+                model_copy._modules[name] = self._create_deep_copy(module, device)
+        
+        # Move to device if specified
+        if device is not None:
+            model_copy.to(device)
+            
+        return model_copy
+
+    def update(self, model):
+        """Update the EMA model parameters
+        
+        Args:
+            model (nn.Module): model with updated parameters
+        """
+        with torch.no_grad():
+            for ema_p, model_p in zip(self.module.parameters(), model.parameters()):
+                if ema_p.dtype.is_floating_point:
+                    ema_p.data.lerp_(model_p.data, 1. - self.decay)
+            
+            # Also update buffers like batch norm statistics
+            for ema_b, model_b in zip(self.module.buffers(), model.buffers()):
+                if ema_b.dtype.is_floating_point:
+                    ema_b.data.copy_(model_b.data)
+
+    def reset_parameters(self, model):
+        """Reset EMA parameters to source model parameters
+        
+        Args:
+            model (nn.Module): model with parameters to copy
+        """
+        with torch.no_grad():
+            for ema_p, model_p in zip(self.module.parameters(), model.parameters()):
+                ema_p.data.copy_(model_p.data)
+            
+            for ema_b, model_b in zip(self.module.buffers(), model.buffers()):
+                ema_b.data.copy_(model_b.data)
+
+    def to(self, device):
+        """Move EMA model to device"""
+        self.module.to(device)
+        self.device = device
+        return self
+
+# Alias ModelEmaV2 to either timm's version or our custom version
+try:
+    # Test if timm's ModelEmaV2, e.g., by creating a minimal model and EMA
+    test_model = torch.nn.Sequential(torch.nn.Linear(10, 10))
+    test_ema = TimmModelEmaV2(test_model, decay=0.999)
+    # Try to initialize it to make sure it works
+    for p_ema, p_model in zip(test_ema.module.parameters(), test_model.parameters()):
+        p_ema.data.copy_(p_model.data)
+    
+    # If we get here, timm's ModelEmaV2 seems to work
+    ModelEmaV2 = TimmModelEmaV2
+    logger.info("Using timm's ModelEmaV2 implementation")
+except Exception:
+    # Fall back to our custom implementation
+    ModelEmaV2 = CustomModelEmaV2
+    logger.info("Using custom ModelEmaV2 implementation")
 
 def save_checkpoint(state: Dict[str, Any], is_best: bool, fold: int) -> None:
     """保存模型检查点
@@ -525,32 +625,58 @@ class MyEncoder(json.JSONEncoder):
             return super(MyEncoder, self).default(obj)
 
 def create_model_ema(model: nn.Module) -> Optional[ModelEmaV2]:
-    """创建EMA模型
+    """Create EMA model if enabled
     
-    参数:
-        model: 基础模型
-        
-    返回:
-        EMA模型实例或None
+    Args:
+        model: Base model
+    
+    Returns:
+        EMA model instance or None
     """
-    if config.use_ema:
+    if not config.use_ema:
+        return None
+        
+    try:
+        # Check if the ModelEmaV2 class from timm is available and working
         model_ema = ModelEmaV2(model, decay=config.ema_decay)
+        
+        # Test that the model was created correctly
         logger.info(f"Created EMA model with decay rate {config.ema_decay}")
+        
         return model_ema
-    return None
+    except Exception as e:
+        logger.warning(f"Failed to create EMA model: {str(e)}. EMA will be disabled.")
+        # Disable EMA for this run to prevent further errors
+        config.use_ema = False
+        return None
 
 def update_ema(ema: ModelEmaV2, model: nn.Module, iter: int) -> None:
-    """更新EMA模型
+    """Update EMA model
     
-    参数:
-        ema: EMA模型
-        model: 基础模型
-        iter: 当前迭代次数
+    Args:
+        ema: EMA model
+        model: Current model
+        iter: Current iteration
     """
-    if iter == 0:
-        ema.reset_parameters(model)
-    else:
-        ema.update(model)
+    try:
+        if iter == 0:
+            # Initialize EMA model parameters from the source model
+            logger.info("Initializing EMA model parameters from source model")
+            if hasattr(ema, 'reset_parameters'):
+                ema.reset_parameters(model)
+            else:
+                # Manually copy parameters if reset_parameters not available
+                with torch.no_grad():
+                    for ema_p, model_p in zip(ema.module.parameters(), model.parameters()):
+                        ema_p.data.copy_(model_p.data)
+                    for ema_b, model_b in zip(ema.module.buffers(), model.buffers()):
+                        ema_b.data.copy_(model_b.data)
+        else:
+            # Normal update after initialization
+            ema.update(model)
+    except Exception as e:
+        logger.warning(f"Error updating EMA model: {str(e)}")
+        # Continue without EMA update rather than crashing the training
 
 def handle_datasets(data_type: str = "train", list_only: bool = False) -> Union[str, List[str]]:
     """查找并处理特定类型的多个数据集
@@ -565,10 +691,23 @@ def handle_datasets(data_type: str = "train", list_only: bool = False) -> Union[
     base_dir = paths.data_dir
     target_dirs = []
     
+    # 确定当前数据类型的合并设置
+    should_merge = False
+    if data_type == "train":
+        # 优先使用特定的合并设置，如果设置了全局合并，也启用
+        should_merge = config.merge_train_datasets or config.merge_datasets
+        merged_dir = paths.merged_train_dir
+    elif data_type == "test":
+        should_merge = config.merge_test_datasets or config.merge_datasets
+        merged_dir = paths.merged_test_dir
+    elif data_type == "val":
+        should_merge = config.merge_val_datasets or config.merge_datasets
+        merged_dir = paths.merged_val_dir
+    
     # 查找所有相关的数据集目录
     if data_type == "train":
         # 检查合并目录是否存在且有内容
-        if config.merge_datasets and os.path.exists(paths.merged_train_dir):
+        if should_merge and os.path.exists(paths.merged_train_dir):
             merged_files = glob.glob(os.path.join(paths.merged_train_dir, "**", "*.*"), recursive=True)
             if merged_files:
                 if not list_only:
@@ -596,7 +735,7 @@ def handle_datasets(data_type: str = "train", list_only: bool = False) -> Union[
                         
     elif data_type == "test":
         # 检查合并目录是否存在且有内容
-        if config.merge_datasets and os.path.exists(paths.merged_test_dir):
+        if should_merge and os.path.exists(paths.merged_test_dir):
             merged_files = glob.glob(os.path.join(paths.merged_test_dir, "*.*"))
             if merged_files:
                 if not list_only:
@@ -626,7 +765,7 @@ def handle_datasets(data_type: str = "train", list_only: bool = False) -> Union[
                 
     elif data_type == "val":
         # 检查合并目录是否存在且有内容
-        if config.merge_datasets and os.path.exists(paths.merged_val_dir):
+        if should_merge and os.path.exists(paths.merged_val_dir):
             merged_files = glob.glob(os.path.join(paths.merged_val_dir, "*.*"))
             if merged_files:
                 if not list_only:
@@ -661,34 +800,34 @@ def handle_datasets(data_type: str = "train", list_only: bool = False) -> Union[
         return target_dirs[0]
     
     # 多个数据集时的处理逻辑
-        # 根据策略选择一个数据集
-        selected_dir = None
-        
-        if config.dataset_to_use == "first":
-            selected_dir = target_dirs[0]
+    # 根据策略选择一个数据集
+    selected_dir = None
+    
+    if config.dataset_to_use == "first":
+        selected_dir = target_dirs[0]
         logger.info(f"Selected first {data_type} dataset: {selected_dir}")
-        
-        elif config.dataset_to_use == "last":
-            selected_dir = target_dirs[-1]
+    
+    elif config.dataset_to_use == "last":
+        selected_dir = target_dirs[-1]
         logger.info(f"Selected last {data_type} dataset: {selected_dir}")
-        
-        elif config.dataset_to_use == "specific":
-            # 查找特定名称的数据集
-            for dir_path in target_dirs:
-                if config.specific_dataset in dir_path:
-                    selected_dir = dir_path
+    
+    elif config.dataset_to_use == "specific":
+        # 查找特定名称的数据集
+        for dir_path in target_dirs:
+            if config.specific_dataset in dir_path:
+                selected_dir = dir_path
                 logger.info(f"Found specified {data_type} dataset: {selected_dir}")
-                    break
-            if selected_dir is None:
+                break
+        if selected_dir is None:
             logger.warning(f"Could not find specified {data_type} dataset: {config.specific_dataset}, using largest dataset instead")
-                selected_dir = max(target_dirs, key=lambda d: len(glob.glob(os.path.join(d, "**/*"), recursive=True)))
-        
-        else:  # "auto" 或其他未知选项
-            # 使用文件数量最多的数据集
             selected_dir = max(target_dirs, key=lambda d: len(glob.glob(os.path.join(d, "**/*"), recursive=True)))
-    logger.info(f"Auto-selected largest {data_type} dataset: {selected_dir}")
+    
+    else:  # "auto" 或其他未知选项
+        # 使用文件数量最多的数据集
+        selected_dir = max(target_dirs, key=lambda d: len(glob.glob(os.path.join(d, "**/*"), recursive=True)))
+        logger.info(f"Auto-selected largest {data_type} dataset: {selected_dir}")
         
-        return selected_dir
+    return selected_dir
 
 def test_dataset_handling():
     """测试数据集处理功能"""

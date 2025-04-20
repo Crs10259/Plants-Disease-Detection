@@ -1,18 +1,20 @@
 import os
+import io
 import json
-import torch
+import time
 import numpy as np
-import pandas as pd
+import torch
+import logging
 from PIL import Image
-from torchvision import transforms
+from pathlib import Path
+from typing import List, Dict, Any, Optional, Tuple, Union
 from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
 from tqdm import tqdm
 from collections import OrderedDict
-import logging
 from utils.utils import MyEncoder
 from config.config import config, paths
 from models.model import get_net
-from typing import List, Dict, Any, Optional, Union
 
 class InferenceManager:
     """Inference manager class for plant disease detection"""
@@ -249,28 +251,66 @@ class InferenceDataset(Dataset):
             # Return empty image
             return torch.zeros((3, config.img_height, config.img_weight)), img_path
 
-def predict(model_path: str, image_folder: str, output_file: str = paths.prediction_file) -> List[Dict]:
-    """Convenience function for making predictions
+def predict(model_path: str, input_path: str, output_file: str = paths.prediction_file, is_dir: bool = False) -> List[Dict]:
+    """预测函数，支持单张图片或图片目录
     
-    Args:
-        model_path: Path to model weights
-        image_folder: Path to folder containing images
-        output_file: Output file path
+    参数:
+        model_path: 模型权重路径
+        input_path: 输入图片或图片目录路径
+        output_file: 输出文件路径
+        is_dir: 输入是否为目录
         
-    Returns:
-        List of prediction dictionaries
+    返回:
+        预测结果字典列表
     """
-    # Initialize inference manager
+    logger = logging.getLogger('Inference')
+    
+    # 初始化推理管理器
     inference = InferenceManager(model_path)
     
-    # Load model
-    inference.load_model()
-    
-    # Make predictions
-    predictions = inference.predict_batch(image_folder)
-    
-    # Save predictions if output file is provided
-    if output_file:
-        inference.save_predictions(predictions, output_file)
+    try:
+        # 加载模型
+        inference.load_model()
         
-    return predictions 
+        # 进行预测
+        if is_dir:
+            # 检查目录是否存在
+            if not os.path.exists(input_path) or not os.path.isdir(input_path):
+                logger.error(f"Directory not found or not a directory: {input_path}")
+                return []
+                
+            # 检查目录是否为空
+            image_files = [f for f in os.listdir(input_path) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+            if not image_files:
+                logger.error(f"No image files found in directory: {input_path}")
+                return []
+                
+            # 目录预测
+            logger.info(f"Predicting on {len(image_files)} images in {input_path}")
+            predictions = inference.predict_batch(input_path)
+        else:
+            # 单张图片预测
+            if not os.path.exists(input_path) or not os.path.isfile(input_path):
+                logger.error(f"File not found or not a file: {input_path}")
+                return []
+                
+            # 对单个图像进行预测并将结果转换为列表格式
+            logger.info(f"Predicting on single image: {input_path}")
+            pred = inference.predict_single(input_path)
+            predictions = [{
+                'image_id': os.path.basename(input_path),
+                'disease_class': int(np.argmax(pred)),
+                'confidence': float(np.max(pred))
+            }]
+        
+        # 保存预测结果
+        if output_file and predictions:
+            inference.save_predictions(predictions, output_file)
+            logger.info(f"Saved predictions to {output_file}")
+            
+        return predictions
+    except Exception as e:
+        logger.error(f"Error during prediction: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return [] 

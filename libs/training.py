@@ -21,8 +21,9 @@ from utils.utils import *
 from tqdm import tqdm
 from torch.cuda.amp import autocast, GradScaler
 import timm.utils
-from typing import Tuple, Optional, Dict, Any
+from typing import Dict, List, Tuple, Union, Optional, Any, Set, Type
 from pathlib import Path
+from utils.utils import ModelEmaV2
 
 class Trainer:
     """Training manager class that encapsulates all training functionality"""
@@ -112,7 +113,7 @@ class Trainer:
     def train_epoch(self, model: nn.Module, train_dataloader: DataLoader, 
                    criterion: nn.Module, optimizer: optim.Optimizer, epoch: int, 
                    log: Optional[Logger] = None, scaler: Optional[GradScaler] = None, 
-                   model_ema: Optional[ModelEmaV2] = None) -> Tuple[float, float, float]:
+                   model_ema: Optional["ModelEmaV2"] = None) -> Tuple[float, float, float]:
         """Train for a single epoch
         
         Args:
