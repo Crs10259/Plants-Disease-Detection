@@ -8,40 +8,49 @@ import logging
 import time
 import glob
 from typing import Dict, Any, Optional, List, Tuple, Union
-import torch
-from datetime import datetime
+import dataset.data_prep as data_prep
 
-# Add the project root to the path
+# 将项目根目录添加到路径
 project_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(project_dir)
 
-# Import configuration
+# 导入配置
 from config.config import config, paths
-from dataset.data_prep import setup_data, normalize_path
+from dataset.data_prep import normalize_path, setup_data
 from libs.inference import predict
 
-# Set up logging
+# 设置日志
 current_time = time.strftime("%Y%m%d_%H%M%S", time.localtime())
-log_file = f"logs/main_{current_time}.log"
+log_file = f"{paths.log_dir}main_{current_time}.log"
 os.makedirs(os.path.dirname(log_file), exist_ok=True)
 
+# 更详细的日志格式
+log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+
+# 确保日志保存到文件
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format=log_format,
     handlers=[
-        logging.FileHandler(log_file),
+        logging.FileHandler(log_file, encoding="utf-8"),
         logging.StreamHandler()
     ]
 )
+
+# 确保处理器的级别正确设置
+root_logger = logging.getLogger()
+for handler in root_logger.handlers:
+    handler.setLevel(logging.INFO)
+
 logger = logging.getLogger('Main')
 
 def add_train_arguments(train_parser: argparse.ArgumentParser) -> None:
-    """Add training-related arguments to the parser
+    """添加训练相关的参数到解析器
     
-    Args:
-        train_parser: The argument parser for the training command
+    参数:
+        train_parser: 训练命令的参数解析器
     """
-    # Basic training parameters
+    # 基本训练参数
     train_parser.add_argument('--epochs', type=int, 
                              help='Number of epochs (default: from config)')
     train_parser.add_argument('--model', type=str, 
@@ -50,7 +59,7 @@ def add_train_arguments(train_parser: argparse.ArgumentParser) -> None:
                              help='Batch size (default: from config)')
     train_parser.add_argument('--lr', type=float, help='Learning rate')
     
-    # Data preparation flags
+    # 数据准备标志
     train_parser.add_argument('--prepare', action='store_true', 
                              help='Run data preparation before training')
     train_parser.add_argument('--no-prepare', action='store_true', 
@@ -63,8 +72,12 @@ def add_train_arguments(train_parser: argparse.ArgumentParser) -> None:
                              help='Do not merge augmented data with original training data')
     train_parser.add_argument('--dataset-path', type=str, 
                              help='Custom path to dataset files or directory')
+    train_parser.add_argument('--cleanup', action='store_true', 
+                             help='Clean up temporary files after processing and training')
+    train_parser.add_argument('--force-cleanup', action='store_true', 
+                             help='Force cleanup without asking for confirmation')
     
-    # Optimizer options
+    # 优化器选项
     train_parser.add_argument('--optimizer', type=str, choices=['adam', 'adamw', 'sgd', 'ranger'],
                              help='Optimizer selection (default: from config)')
     train_parser.add_argument('--weight-decay', type=float,
@@ -72,7 +85,7 @@ def add_train_arguments(train_parser: argparse.ArgumentParser) -> None:
     train_parser.add_argument('--no-lookahead', action='store_true',
                              help='Disable Lookahead optimizer wrapper')
     
-    # Learning rate scheduler options
+    # 学习率调度器选项
     train_parser.add_argument('--scheduler', type=str, choices=['step', 'cosine', 'onecycle'],
                              help='Learning rate scheduler (default: from config)')
     train_parser.add_argument('--warmup-epochs', type=int,
@@ -80,7 +93,7 @@ def add_train_arguments(train_parser: argparse.ArgumentParser) -> None:
     train_parser.add_argument('--warmup-factor', type=float,
                              help='Warmup factor (default: from config)')
     
-    # Mixup and CutMix options
+    # Mixup 和 CutMix 选项
     train_parser.add_argument('--no-mixup', action='store_true',
                              help='Disable Mixup data augmentation')
     train_parser.add_argument('--mixup-alpha', type=float,
@@ -89,34 +102,38 @@ def add_train_arguments(train_parser: argparse.ArgumentParser) -> None:
                              help='CutMix probability (default: from config)')
     train_parser.add_argument('--no-random-erasing', action='store_true',
                              help='Disable random erasing augmentation')
+    train_parser.add_argument('--disable-augmentation', action='store_true',
+                             help='Disable all data augmentation (overrides config.use_data_aug)')
+    train_parser.add_argument('--enable-augmentation', action='store_true',
+                             help='Enable all data augmentation (overrides config.use_data_aug)')
     
-    # Early stopping parameters
+    # 早停参数
     train_parser.add_argument('--no-early-stopping', action='store_true',
                              help='Disable early stopping')
     train_parser.add_argument('--patience', type=int,
                              help='Early stopping patience (default: from config)')
     
-    # Mixed precision options
+    # 混合精度选项
     train_parser.add_argument('--no-amp', action='store_true',
                              help='Disable automatic mixed precision training')
     
-    # Gradient clipping options
+    # 梯度裁剪选项
     train_parser.add_argument('--gradient-clip-val', type=float,
                              help='Gradient clipping value (default: from config)')
     
-    # EMA options
+    # EMA 选项
     train_parser.add_argument('--no-ema', action='store_true', 
                              help='Disable Exponential Moving Average (EMA)')
     train_parser.add_argument('--ema-decay', type=float,
                              help='EMA decay rate (default: from config)')
     
-    # Device options
+    # 设备选项
     train_parser.add_argument('--device', type=str, choices=['auto', 'cuda', 'cpu'],
                              help='Device to use for training (default: from config)')
     train_parser.add_argument('--gpus', type=str,
                              help='GPU device IDs to use, comma separated (e.g., "0,1")')
     
-    # Advanced options
+    # 高级选项
     train_parser.add_argument('--seed', type=int,
                              help='Random seed for reproducibility (default: from config)')
     train_parser.add_argument('--label-smoothing', type=float,
@@ -125,20 +142,20 @@ def add_train_arguments(train_parser: argparse.ArgumentParser) -> None:
                              help='Disable gradient checkpointing')
 
 def setup_parser() -> argparse.ArgumentParser:
-    """Set up command line argument parser
+    """设置命令行参数解析器
     
-    Returns:
-        Configured argument parser
+    返回:
+        配置好的参数解析器
     """
     parser = argparse.ArgumentParser(
         description="Plant Disease Detection System",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     
-    # Create subparsers for different commands
+    # 为不同的命令创建子解析器
     subparsers = parser.add_subparsers(dest='command', help='Command to execute')
     
-    # Data preparation command
+    # 数据准备命令
     prep_parser = subparsers.add_parser('prepare', 
                                         help='Prepare datasets (extract, process, augment)')
     prep_parser.add_argument('--extract', action='store_true', 
@@ -161,14 +178,20 @@ def setup_parser() -> argparse.ArgumentParser:
                             help='Do not merge augmented data with original data')
     prep_parser.add_argument('--cleanup', action='store_true', 
                             help='Clean up temporary files after processing')
+    prep_parser.add_argument('--force-cleanup', action='store_true', 
+                            help='Force cleanup without asking for confirmation')
+    prep_parser.add_argument('--disable-augmentation', action='store_true',
+                            help='Disable data augmentation (overrides config.use_data_aug)')
+    prep_parser.add_argument('--enable-augmentation', action='store_true',
+                            help='Enable data augmentation (overrides config.use_data_aug)')
     
-    # Training command
+    # 训练命令
     train_parser = subparsers.add_parser('train', 
                                          help='Train a model')
-    # Use the dedicated function to add training arguments
+    # 使用专用函数添加训练参数
     add_train_arguments(train_parser)
     
-    # Inference command
+    # 推理命令
     infer_parser = subparsers.add_parser('predict', 
                                          help='Run inference with a trained model')
     infer_parser.add_argument('--model', type=str, required=True, 
@@ -191,29 +214,45 @@ def prepare_data(args: argparse.Namespace) -> Dict[str, Any]:
     """
     logger.info("Starting data preparation")
     
-    # 如果--all参数指定，则运行所有数据准备步骤
-    if getattr(args, 'all', False):
+    # 确定要执行的操作
+    extract = args.extract if hasattr(args, 'extract') else False
+    process = args.process if hasattr(args, 'process') else False
+    augment = args.augment if hasattr(args, 'augment') else False
+    status = args.status if hasattr(args, 'status') else False
+    merge = args.merge if hasattr(args, 'merge') else None
+    
+    # 如果指定了--all，执行所有操作
+    if hasattr(args, 'all') and args.all:
         extract = process = augment = status = True
         merge = "all"
-    else:
-        extract = getattr(args, 'extract', False)
-        process = getattr(args, 'process', False)
-        augment = getattr(args, 'augment', False)
-        status = getattr(args, 'status', False)
-        merge = getattr(args, 'merge', None)
     
-    # 获取自定义数据集路径
+    # 获取其他参数
     custom_dataset_path = getattr(args, 'dataset_path', None)
     
-    # 处理增强数据合并标志
+    # 处理merge_augmented和no_merge_augmented
     merge_augmented = None
-    if getattr(args, 'merge_augmented', False) and getattr(args, 'no_merge_augmented', False):
-        logger.warning("Both --merge-augmented and --no-merge-augmented specified, using --merge-augmented")
+    if hasattr(args, 'merge_augmented') and args.merge_augmented:
         merge_augmented = True
-    elif getattr(args, 'merge_augmented', False):
-        merge_augmented = True
-    elif getattr(args, 'no_merge_augmented', False):
+        if hasattr(args, 'no_merge_augmented') and args.no_merge_augmented:
+            logger.warning("Both --merge-augmented and --no-merge-augmented specified, using --merge-augmented")
+    elif hasattr(args, 'no_merge_augmented') and args.no_merge_augmented:
         merge_augmented = False
+    
+    # 处理数据增强选项
+    if hasattr(args, 'enable_augmentation') and args.enable_augmentation:
+        if hasattr(args, 'disable_augmentation') and args.disable_augmentation:
+            logger.warning("Both --enable-augmentation and --disable-augmentation specified, using --enable-augmentation")
+        config.use_data_aug = True
+        logger.info("Data augmentation enabled for training")
+    elif hasattr(args, 'disable_augmentation') and args.disable_augmentation:
+        config.use_data_aug = False
+        logger.info("Data augmentation explicitly disabled for training")
+    else:
+        logger.info("Data augmentation enabled for training")
+    
+    # 获取清理临时文件的参数
+    cleanup_temp = getattr(args, 'cleanup', False)
+    force_cleanup = getattr(args, 'force_cleanup', False)
     
     # 运行数据准备
     result = setup_data(
@@ -222,9 +261,10 @@ def prepare_data(args: argparse.Namespace) -> Dict[str, Any]:
         augment=augment,
         status=status,
         merge=merge,
-        cleanup_temp=getattr(args, 'clean', False),
+        cleanup_temp=cleanup_temp,
         custom_dataset_path=custom_dataset_path,
-        merge_augmented=merge_augmented
+        merge_augmented=merge_augmented,
+        force_cleanup=force_cleanup
     )
     
     return result
@@ -253,15 +293,15 @@ def train_pipeline(args: argparse.Namespace) -> None:
             dataset_path=getattr(args, 'dataset_path', None),
             merge_augmented=getattr(args, 'merge_augmented', None),
             no_merge_augmented=getattr(args, 'no_merge_augmented', None),
-            clean=False
+            cleanup=True  # 启用清理临时文件
         )
         prepare_data(prepare_args)
     else:
         # 检查测试数据是否存在，不存在时仅处理测试数据
         test_images_path = normalize_path(paths.test_images_dir)
         if not os.path.exists(test_images_path) or len(glob.glob(os.path.join(test_images_path, "*.*"))) == 0:
-            logger.warning(f"测试图像目录不存在或为空: {test_images_path}")
-            logger.info("仅准备测试数据")
+            logger.warning(f"Test image directory does not exist or is empty: {test_images_path}")
+            logger.info("Preparing test data only")
             
             # 初始化DataPreparation对象并仅提取和处理测试数据
             from dataset.data_prep import DataPreparation
@@ -269,7 +309,7 @@ def train_pipeline(args: argparse.Namespace) -> None:
             
             # 设置测试集合并标志
             config.merge_test_datasets = True
-            logger.info("已启用测试集合并")
+            logger.info("Test dataset merging enabled")
             
             # 获取data目录下所有包含test的zip文件
             data_dir = normalize_path(paths.data_dir)
@@ -281,7 +321,7 @@ def train_pipeline(args: argparse.Namespace) -> None:
                 test_files.extend(glob.glob(os.path.join(data_dir, "**", f"*TEST*{ext}")))
             
             if test_files:
-                logger.info(f"找到以下测试数据集文件: {test_files}")
+                logger.info(f"Found the following test dataset files: {test_files}")
                 
                 # 确保测试解压目录存在
                 extract_to = normalize_path(os.path.join(paths.temp_dataset_dir, "AgriculturalDisease_testset"))
@@ -289,22 +329,24 @@ def train_pipeline(args: argparse.Namespace) -> None:
                 
                 # 解压所有测试数据集文件
                 for test_file in test_files:
-                    logger.info(f"解压测试数据集文件: {test_file}")
+                    logger.info(f"Extracting test dataset file: {test_file}")
                     if data_prep.extract_zip_file(test_file, extract_to):
-                        logger.info(f"成功解压 {test_file}")
+                        logger.info(f"Successfully extracted {test_file}")
                     else:
-                        logger.error(f"解压 {test_file} 失败")
+                        logger.error(f"Failed to extract {test_file}")
                 
                 # 确保测试目录存在
                 os.makedirs(paths.test_images_dir, exist_ok=True)
                 
                 # 查找所有可能的测试图像目录
                 potential_image_dirs = []
+                potential_image_dirs_abs = []  # 存储绝对路径，用于检查
                 
                 # 1. 直接检查标准images目录
                 standard_images_dir = normalize_path(os.path.join(extract_to, "images"))
                 if os.path.exists(standard_images_dir) and os.path.isdir(standard_images_dir):
                     potential_image_dirs.append(standard_images_dir)
+                    potential_image_dirs_abs.append(os.path.abspath(standard_images_dir))
                 
                 # 2. 检查可能的测试A/B子目录中的images
                 test_subdirs = glob.glob(os.path.join(extract_to, "AgriculturalDisease_test*"))
@@ -312,16 +354,26 @@ def train_pipeline(args: argparse.Namespace) -> None:
                     subdir_images = os.path.join(subdir, "images")
                     if os.path.exists(subdir_images) and os.path.isdir(subdir_images):
                         potential_image_dirs.append(subdir_images)
+                        potential_image_dirs_abs.append(os.path.abspath(subdir_images))
                 
                 # 3. 递归搜索其他可能包含图像的目录
                 for root, dirs, files in os.walk(extract_to):
-                    if not any(root.startswith(d) for d in potential_image_dirs):
+                    root_abs = os.path.abspath(root)
+                    # 检查当前目录是否已经在潜在图像目录列表中或是其子目录
+                    already_included = False
+                    for dir_abs in potential_image_dirs_abs:
+                        if root_abs == dir_abs or root_abs.startswith(dir_abs + os.sep):
+                            already_included = True
+                            break
+                    
+                    if not already_included:
                         image_files = [f for f in files if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
                         if image_files and os.path.basename(root) != "labels":
                             potential_image_dirs.append(root)
+                            potential_image_dirs_abs.append(root_abs)
                 
                 if potential_image_dirs:
-                    logger.info(f"找到以下测试图像目录: {potential_image_dirs}")
+                    logger.info(f"Found the following test image directories: {potential_image_dirs}")
                     
                     # 复制所有测试图像到测试目录
                     copied_count = 0
@@ -337,142 +389,145 @@ def train_pipeline(args: argparse.Namespace) -> None:
                             file_pattern="*.png"
                         )
                         copied_count += count
-                        logger.info(f"从 {image_dir} 复制了 {count} 个图像文件到 {paths.test_images_dir}")
+                        logger.info(f"Copied {count} image files from {image_dir} to {paths.test_images_dir}")
                     
                     if copied_count > 0:
-                        logger.info(f"成功准备测试数据: 总共复制了 {copied_count} 个图像文件")
+                        logger.info(f"Successfully prepared test data: copied {copied_count} image files in total")
+                        logger.info("Cleaning up temporary test data files...")
+                        data_prep.cleanup_temp_files(force=True)
                     else:
-                        logger.warning(f"未能找到任何测试图像文件")
+                        logger.warning(f"Could not find any test image files")
                 else:
-                    logger.error("在解压后的目录中未找到测试图像目录")
+                    logger.error("No test image directory found in the extracted directory")
             else:
-                logger.error("找不到任何测试数据集文件")
+                logger.error("Could not find any test dataset files")
     
     # 根据命令行参数覆盖配置
     # Basic training parameters
-    if args.epochs:
+    if hasattr(args, 'epochs') and args.epochs:
         config.epoch = args.epochs
         logger.info(f"Setting epochs to {config.epoch}")
     
-    if args.model:
+    if hasattr(args, 'model') and args.model:
         config.model_name = args.model
         logger.info(f"Setting model to {config.model_name}")
     
-    if args.batch_size:
+    if hasattr(args, 'batch_size') and args.batch_size:
         config.train_batch_size = args.batch_size
         logger.info(f"Setting batch size to {config.train_batch_size}")
         
-    if args.lr:
+    if hasattr(args, 'lr') and args.lr:
         config.lr = args.lr
         logger.info(f"Setting learning rate to {config.lr}")
         
     # 设置数据集路径
-    if args.dataset_path:
+    if hasattr(args, 'dataset_path') and args.dataset_path:
         config.dataset_path = args.dataset_path
         config.use_custom_dataset_path = True
         logger.info(f"Using custom dataset path: {config.dataset_path}")
     
     # 配置是否合并增强数据
-    if getattr(args, 'merge_augmented', False) and getattr(args, 'no_merge_augmented', False):
-        logger.warning("Both --merge-augmented and --no-merge-augmented specified, using --merge-augmented")
-        config.merge_augmented_data = True
-    elif getattr(args, 'merge_augmented', False):
-        config.merge_augmented_data = True
-        logger.info("Will merge augmented data with original training data")
-    elif getattr(args, 'no_merge_augmented', False):
-        config.merge_augmented_data = False
-        logger.info("Will not merge augmented data with original training data")
+    if hasattr(args, 'merge_augmented') and hasattr(args, 'no_merge_augmented'):
+        if args.merge_augmented and args.no_merge_augmented:
+            logger.warning("Both --merge-augmented and --no-merge-augmented specified, using --merge-augmented")
+            config.merge_augmented_data = True
+        elif args.merge_augmented:
+            config.merge_augmented_data = True
+            logger.info("Will merge augmented data with original training data")
+        elif args.no_merge_augmented:
+            config.merge_augmented_data = False
+            logger.info("Will not merge augmented data with original training data")
     
     # Optimizer options
-    if args.optimizer:
+    if hasattr(args, 'optimizer') and args.optimizer:
         config.optimizer = args.optimizer
         logger.info(f"Setting optimizer to {config.optimizer}")
     
-    if args.weight_decay:
+    if hasattr(args, 'weight_decay') and args.weight_decay:
         config.weight_decay = args.weight_decay
         logger.info(f"Setting weight decay to {config.weight_decay}")
     
-    if args.no_lookahead:
+    if hasattr(args, 'no_lookahead') and args.no_lookahead:
         config.use_lookahead = False
         logger.info("Disabling Lookahead optimizer wrapper")
     
     # Learning rate scheduler options
-    if args.scheduler:
+    if hasattr(args, 'scheduler') and args.scheduler:
         config.scheduler = args.scheduler
         logger.info(f"Setting LR scheduler to {config.scheduler}")
     
-    if args.warmup_epochs:
+    if hasattr(args, 'warmup_epochs') and args.warmup_epochs:
         config.warmup_epochs = args.warmup_epochs
         logger.info(f"Setting warmup epochs to {config.warmup_epochs}")
     
-    if args.warmup_factor:
+    if hasattr(args, 'warmup_factor') and args.warmup_factor:
         config.warmup_factor = args.warmup_factor
         logger.info(f"Setting warmup factor to {config.warmup_factor}")
     
     # Mixup and CutMix options
-    if args.no_mixup:
+    if hasattr(args, 'no_mixup') and args.no_mixup:
         config.use_mixup = False
         logger.info("Disabling Mixup data augmentation")
     
-    if args.mixup_alpha:
+    if hasattr(args, 'mixup_alpha') and args.mixup_alpha:
         config.mixup_alpha = args.mixup_alpha
         logger.info(f"Setting Mixup alpha to {config.mixup_alpha}")
     
-    if args.cutmix_prob:
+    if hasattr(args, 'cutmix_prob') and args.cutmix_prob:
         config.cutmix_prob = args.cutmix_prob
         logger.info(f"Setting CutMix probability to {config.cutmix_prob}")
     
-    if args.no_random_erasing:
+    if hasattr(args, 'no_random_erasing') and args.no_random_erasing:
         config.use_random_erasing = False
         logger.info("Disabling random erasing augmentation")
     
     # Early stopping parameters
-    if args.no_early_stopping:
+    if hasattr(args, 'no_early_stopping') and args.no_early_stopping:
         config.use_early_stopping = False
         logger.info("Disabling early stopping")
     
-    if args.patience:
+    if hasattr(args, 'patience') and args.patience:
         config.early_stopping_patience = args.patience
         logger.info(f"Setting early stopping patience to {config.early_stopping_patience}")
     
     # Mixed precision options
-    if args.no_amp:
+    if hasattr(args, 'no_amp') and args.no_amp:
         config.use_amp = False
         logger.info("Disabling automatic mixed precision training")
     
     # Gradient clipping options
-    if args.gradient_clip_val:
+    if hasattr(args, 'gradient_clip_val') and args.gradient_clip_val:
         config.gradient_clip_val = args.gradient_clip_val
         logger.info(f"Setting gradient clipping value to {config.gradient_clip_val}")
     
     # EMA options
-    if args.no_ema:
+    if hasattr(args, 'no_ema') and args.no_ema:
         config.use_ema = False
         logger.info("Disabling Exponential Moving Average (EMA)")
     
-    if args.ema_decay:
+    if hasattr(args, 'ema_decay') and args.ema_decay:
         config.ema_decay = args.ema_decay
         logger.info(f"Setting EMA decay rate to {config.ema_decay}")
     
     # Device options
-    if args.device:
+    if hasattr(args, 'device') and args.device:
         config.device = args.device
         logger.info(f"Setting device to {config.device}")
     
-    if args.gpus:
+    if hasattr(args, 'gpus') and args.gpus:
         config.gpus = args.gpus
         logger.info(f"Setting GPUs to {config.gpus}")
     
     # Advanced options
-    if args.seed:
+    if hasattr(args, 'seed') and args.seed:
         config.seed = args.seed
         logger.info(f"Setting random seed to {config.seed}")
     
-    if args.label_smoothing:
+    if hasattr(args, 'label_smoothing') and args.label_smoothing:
         config.label_smoothing = args.label_smoothing
         logger.info(f"Setting label smoothing to {config.label_smoothing}")
     
-    if args.no_gradient_checkpointing:
+    if hasattr(args, 'no_gradient_checkpointing') and args.no_gradient_checkpointing:
         config.use_gradient_checkpointing = False
         logger.info("Disabling gradient checkpointing")
         
@@ -480,8 +535,17 @@ def train_pipeline(args: argparse.Namespace) -> None:
     from libs.training import train_model
     train_model(config)
     
-    elapsed = time.time() - start_time
-    logger.info(f"Training completed in {elapsed:.2f} seconds")
+    # 训练完成后，如果参数中指定了清理临时文件，则执行清理
+    if getattr(args, 'cleanup', False):
+        logger.info("Training completed, cleaning up temporary files...")
+        from dataset.data_prep import DataPreparation
+        data_prep = DataPreparation()
+        # 使用force_cleanup参数决定是否强制清理
+        force_cleanup = getattr(args, 'force_cleanup', False)
+        data_prep.cleanup_temp_files(force=force_cleanup)
+    
+    elapsed_time = time.time() - start_time
+    logger.info(f"Training pipeline completed in {elapsed_time:.2f} seconds")
 
 def run_inference(args) -> None:
     """执行模型推理
@@ -504,7 +568,7 @@ def run_inference(args) -> None:
         
         # 检查是否是测试目录
         if input_path == paths.test_images_dir or input_path == paths.test_dir:
-            logger.info("需要准备测试数据")
+            logger.info("Test data preparation needed")
             
             # 直接使用DataPreparation类来处理测试数据
             from dataset.data_prep import DataPreparation
@@ -512,7 +576,7 @@ def run_inference(args) -> None:
             
             # 设置测试集合并标志
             config.merge_test_datasets = True
-            logger.info("已启用测试集合并")
+            logger.info("Test dataset merging enabled")
             
             # 获取data目录下所有包含test的zip文件
             data_dir = normalize_path(paths.data_dir)
@@ -524,7 +588,7 @@ def run_inference(args) -> None:
                 test_files.extend(glob.glob(os.path.join(data_dir, "**", f"*TEST*{ext}")))
             
             if test_files:
-                logger.info(f"找到以下测试数据集文件: {test_files}")
+                logger.info(f"Found the following test dataset files: {test_files}")
                 
                 # 确保测试解压目录存在
                 extract_to = normalize_path(os.path.join(paths.temp_dataset_dir, "AgriculturalDisease_testset"))
@@ -532,22 +596,24 @@ def run_inference(args) -> None:
                 
                 # 解压所有测试数据集文件
                 for test_file in test_files:
-                    logger.info(f"解压测试数据集文件: {test_file}")
+                    logger.info(f"Extracting test dataset file: {test_file}")
                     if data_prep.extract_zip_file(test_file, extract_to):
-                        logger.info(f"成功解压 {test_file}")
+                        logger.info(f"Successfully extracted {test_file}")
                     else:
-                        logger.error(f"解压 {test_file} 失败")
+                        logger.error(f"Failed to extract {test_file}")
                 
                 # 确保测试目录存在
                 os.makedirs(paths.test_images_dir, exist_ok=True)
                 
                 # 查找所有可能的测试图像目录
                 potential_image_dirs = []
+                potential_image_dirs_abs = []  # 存储绝对路径，用于检查
                 
                 # 1. 直接检查标准images目录
                 standard_images_dir = normalize_path(os.path.join(extract_to, "images"))
                 if os.path.exists(standard_images_dir) and os.path.isdir(standard_images_dir):
                     potential_image_dirs.append(standard_images_dir)
+                    potential_image_dirs_abs.append(os.path.abspath(standard_images_dir))
                 
                 # 2. 检查可能的测试A/B子目录中的images
                 test_subdirs = glob.glob(os.path.join(extract_to, "AgriculturalDisease_test*"))
@@ -555,16 +621,26 @@ def run_inference(args) -> None:
                     subdir_images = os.path.join(subdir, "images")
                     if os.path.exists(subdir_images) and os.path.isdir(subdir_images):
                         potential_image_dirs.append(subdir_images)
+                        potential_image_dirs_abs.append(os.path.abspath(subdir_images))
                 
                 # 3. 递归搜索其他可能包含图像的目录
                 for root, dirs, files in os.walk(extract_to):
-                    if not any(root.startswith(d) for d in potential_image_dirs):
+                    root_abs = os.path.abspath(root)
+                    # 检查当前目录是否已经在潜在图像目录列表中或是其子目录
+                    already_included = False
+                    for dir_abs in potential_image_dirs_abs:
+                        if root_abs == dir_abs or root_abs.startswith(dir_abs + os.sep):
+                            already_included = True
+                            break
+                    
+                    if not already_included:
                         image_files = [f for f in files if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
                         if image_files and os.path.basename(root) != "labels":
                             potential_image_dirs.append(root)
+                            potential_image_dirs_abs.append(root_abs)
                 
                 if potential_image_dirs:
-                    logger.info(f"找到以下测试图像目录: {potential_image_dirs}")
+                    logger.info(f"Found the following test image directories: {potential_image_dirs}")
                     
                     # 复制所有测试图像到测试目录
                     copied_count = 0
@@ -580,24 +656,26 @@ def run_inference(args) -> None:
                             file_pattern="*.png"
                         )
                         copied_count += count
-                        logger.info(f"从 {image_dir} 复制了 {count} 个图像文件到 {paths.test_images_dir}")
+                        logger.info(f"Copied {count} image files from {image_dir} to {paths.test_images_dir}")
                     
                     if copied_count > 0:
-                        logger.info(f"成功准备测试数据: 总共复制了 {copied_count} 个图像文件")
+                        logger.info(f"Successfully prepared test data: copied {copied_count} image files in total")
+                        logger.info("Cleaning up temporary test data files...")
+                        data_prep.cleanup_temp_files(force=True)
                     else:
-                        logger.warning(f"未能找到任何测试图像文件")
+                        logger.warning(f"Could not find any test image files")
                 else:
-                    logger.error("在解压后的目录中未找到测试图像目录")
+                    logger.error("No test image directory found in the extracted directory")
             else:
                 # 尝试使用标准方法查找测试数据集
-                logger.info("尝试查找特定名称的测试数据集文件")
+                logger.info("Trying to find test dataset files with specific names")
                 test_file = data_prep.find_dataset_file(
                     config.test_name_pattern,
                     getattr(args, 'dataset_path', None) if config.use_custom_dataset_path else None
                 )
                 
                 if test_file:
-                    logger.info(f"找到测试数据集文件: {test_file}")
+                    logger.info(f"Found test dataset file: {test_file}")
                     extract_to = normalize_path(os.path.join(paths.temp_dataset_dir, "AgriculturalDisease_testset"))
                     os.makedirs(extract_to, exist_ok=True)
                     
@@ -605,47 +683,78 @@ def run_inference(args) -> None:
                         # 确保测试目录存在
                         os.makedirs(paths.test_images_dir, exist_ok=True)
                         
-                        # 尝试查找多种可能的图像目录路径
-                        potential_image_dirs = [
+                        # 查找所有可能的测试图像目录
+                        potential_image_dirs = []
+                        potential_image_dirs_abs = []  # 存储绝对路径，用于检查
+                        
+                        # 1. 检查多种可能的图像目录路径
+                        possible_paths = [
                             normalize_path(os.path.join(extract_to, "images")),
                             normalize_path(os.path.join(extract_to, "AgriculturalDisease_testA", "images")),
                             normalize_path(os.path.join(extract_to, "AgriculturalDisease_testB", "images"))
                         ]
                         
-                        image_dir_found = False
-                        for img_dir in potential_image_dirs:
-                            if os.path.exists(img_dir) and os.path.isdir(img_dir):
-                                logger.info(f"找到测试图像目录: {img_dir}")
-                                data_prep.copy_files_to_folder(img_dir, paths.test_images_dir)
-                                image_dir_found = True
-                                break
+                        for path in possible_paths:
+                            if os.path.exists(path) and os.path.isdir(path):
+                                potential_image_dirs.append(path)
+                                potential_image_dirs_abs.append(os.path.abspath(path))
                         
-                        if not image_dir_found:
-                            logger.warning(f"在解压后的目录中未找到测试图像目录，尝试递归搜索")
-                            # 递归搜索包含图像的目录
-                            for root, dirs, files in os.walk(extract_to):
-                                image_files = [f for f in files if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
-                                if image_files:
-                                    logger.info(f"找到包含图像的目录: {root}")
-                                    data_prep.copy_files_to_folder(root, paths.test_images_dir)
-                                    image_dir_found = True
+                        # 2. 递归搜索其他可能包含图像的目录
+                        for root, dirs, files in os.walk(extract_to):
+                            root_abs = os.path.abspath(root)
+                            # 检查当前目录是否已经在潜在图像目录列表中或是其子目录
+                            already_included = False
+                            for dir_abs in potential_image_dirs_abs:
+                                if root_abs == dir_abs or root_abs.startswith(dir_abs + os.sep):
+                                    already_included = True
                                     break
                             
-                            if not image_dir_found:
-                                logger.error(f"在解压后的目录中未找到任何测试图像")
+                            if not already_included:
+                                image_files = [f for f in files if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+                                if image_files and os.path.basename(root) != "labels":
+                                    potential_image_dirs.append(root)
+                                    potential_image_dirs_abs.append(root_abs)
+                        
+                        if potential_image_dirs:
+                            logger.info(f"Found the following test image directories: {potential_image_dirs}")
+                            
+                            # 复制所有测试图像到测试目录
+                            copied_count = 0
+                            for image_dir in potential_image_dirs:
+                                count = data_prep.copy_files_to_folder(
+                                    image_dir, 
+                                    paths.test_images_dir, 
+                                    file_pattern="*.jpg"
+                                )
+                                count += data_prep.copy_files_to_folder(
+                                    image_dir, 
+                                    paths.test_images_dir, 
+                                    file_pattern="*.png"
+                                )
+                                copied_count += count
+                                logger.info(f"Copied {count} image files from {image_dir} to {paths.test_images_dir}")
+                            
+                            if copied_count > 0:
+                                logger.info(f"Successfully prepared test data: copied {copied_count} image files in total")
+                                logger.info("Cleaning up temporary test data files...")
+                                data_prep.cleanup_temp_files(force=True)
+                            else:
+                                logger.warning(f"Could not find any test image files")
+                        else:
+                            logger.error(f"No test image directory found in the extracted directory")
                     else:
-                        logger.error(f"无法解压测试数据集文件: {test_file}")
+                        logger.error(f"Unable to extract test dataset file: {test_file}")
                         return
                 else:
-                    logger.error("找不到任何测试数据集文件")
+                    logger.error("Could not find any test dataset files")
                     return
             
             # 再次检查输入路径
             if not os.path.exists(input_path):
-                logger.error(f"即使尝试准备测试数据后，仍无法找到输入路径: {input_path}")
+                logger.error(f"Even after attempting to prepare test data, input path still not found: {input_path}")
                 return
             else:
-                logger.info(f"成功准备测试数据: {input_path}")
+                logger.info(f"Successfully prepared test data: {input_path}")
         else:
             return
     
@@ -680,8 +789,6 @@ def main():
         # 检查现有数据
         from dataset.data_prep import DataPreparation
         data_prep = DataPreparation()
-        data_status = data_prep.get_data_status()
-        
         # 检查是否需要准备数据
         need_data_preparation = True
         
@@ -691,7 +798,7 @@ def main():
             train_files = sum(len(glob.glob(os.path.join(d, "*.*"))) 
                            for d in glob.glob(os.path.join(train_path, "*")) if os.path.isdir(d))
             if train_files > config.min_files_threshold:
-                logger.info(f"训练数据已存在 ({train_files} 个文件)，跳过训练数据准备")
+                logger.info(f"Training data already exists ({train_files} files), skipping training data preparation")
                 need_data_preparation = False
         
         # 检查测试数据是否已存在
@@ -699,29 +806,29 @@ def main():
         need_test_data = True
         if os.path.exists(test_path) and len(glob.glob(os.path.join(test_path, "*.*"))) > 0:
             need_test_data = False
-            logger.info(f"测试数据已存在，跳过测试数据准备")
+            logger.info(f"Test data already exists, skipping test data preparation")
         
         # 根据检查结果运行不同的数据准备步骤
         if need_data_preparation:
-            logger.info("准备完整训练和测试数据")
+            logger.info("Preparing full training and test data")
             prepare_args = argparse.Namespace(
                 extract=True,
                 process=True,
                 augment=True,
                 status=True,
                 merge="all",
-                cleanup=False,
+                cleanup=True,  # 启用清理临时文件
                 dataset_path=None,
                 merge_augmented=True,
                 no_merge_augmented=False
             )
             prepare_data(prepare_args)
         elif need_test_data:
-            logger.info("仅准备测试数据")
+            logger.info("Preparing test data only")
             
             # 设置测试集合并标志
             config.merge_test_datasets = True
-            logger.info("已启用测试集合并")
+            logger.info("Test dataset merging enabled")
             
             # 获取data目录下所有包含test的zip文件
             data_dir = normalize_path(paths.data_dir)
@@ -733,7 +840,7 @@ def main():
                 test_files.extend(glob.glob(os.path.join(data_dir, "**", f"*TEST*{ext}")))
             
             if test_files:
-                logger.info(f"找到以下测试数据集文件: {test_files}")
+                logger.info(f"Found the following test dataset files: {test_files}")
                 
                 # 确保测试解压目录存在
                 extract_to = normalize_path(os.path.join(paths.temp_dataset_dir, "AgriculturalDisease_testset"))
@@ -741,22 +848,24 @@ def main():
                 
                 # 解压所有测试数据集文件
                 for test_file in test_files:
-                    logger.info(f"解压测试数据集文件: {test_file}")
+                    logger.info(f"Extracting test dataset file: {test_file}")
                     if data_prep.extract_zip_file(test_file, extract_to):
-                        logger.info(f"成功解压 {test_file}")
+                        logger.info(f"Successfully extracted {test_file}")
                     else:
-                        logger.error(f"解压 {test_file} 失败")
+                        logger.error(f"Failed to extract {test_file}")
                 
                 # 确保测试目录存在
                 os.makedirs(paths.test_images_dir, exist_ok=True)
                 
                 # 查找所有可能的测试图像目录
                 potential_image_dirs = []
+                potential_image_dirs_abs = []  # 存储绝对路径，用于检查
                 
                 # 1. 直接检查标准images目录
                 standard_images_dir = normalize_path(os.path.join(extract_to, "images"))
                 if os.path.exists(standard_images_dir) and os.path.isdir(standard_images_dir):
                     potential_image_dirs.append(standard_images_dir)
+                    potential_image_dirs_abs.append(os.path.abspath(standard_images_dir))
                 
                 # 2. 检查可能的测试A/B子目录中的images
                 test_subdirs = glob.glob(os.path.join(extract_to, "AgriculturalDisease_test*"))
@@ -764,16 +873,26 @@ def main():
                     subdir_images = os.path.join(subdir, "images")
                     if os.path.exists(subdir_images) and os.path.isdir(subdir_images):
                         potential_image_dirs.append(subdir_images)
+                        potential_image_dirs_abs.append(os.path.abspath(subdir_images))
                 
                 # 3. 递归搜索其他可能包含图像的目录
                 for root, dirs, files in os.walk(extract_to):
-                    if not any(root.startswith(d) for d in potential_image_dirs):
+                    root_abs = os.path.abspath(root)
+                    # 检查当前目录是否已经在潜在图像目录列表中或是其子目录
+                    already_included = False
+                    for dir_abs in potential_image_dirs_abs:
+                        if root_abs == dir_abs or root_abs.startswith(dir_abs + os.sep):
+                            already_included = True
+                            break
+                    
+                    if not already_included:
                         image_files = [f for f in files if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
                         if image_files and os.path.basename(root) != "labels":
                             potential_image_dirs.append(root)
+                            potential_image_dirs_abs.append(root_abs)
                 
                 if potential_image_dirs:
-                    logger.info(f"找到以下测试图像目录: {potential_image_dirs}")
+                    logger.info(f"Found the following test image directories: {potential_image_dirs}")
                     
                     # 复制所有测试图像到测试目录
                     copied_count = 0
@@ -789,54 +908,62 @@ def main():
                             file_pattern="*.png"
                         )
                         copied_count += count
-                        logger.info(f"从 {image_dir} 复制了 {count} 个图像文件到 {paths.test_images_dir}")
+                        logger.info(f"Copied {count} image files from {image_dir} to {paths.test_images_dir}")
                     
                     if copied_count > 0:
-                        logger.info(f"成功准备测试数据: 总共复制了 {copied_count} 个图像文件")
+                        logger.info(f"Successfully prepared test data: copied {copied_count} image files in total")
+                        logger.info("Cleaning up temporary test data files...")
+                        data_prep.cleanup_temp_files(force=True)
                     else:
-                        logger.warning(f"未能找到任何测试图像文件")
+                        logger.warning(f"Could not find any test image files")
                 else:
-                    logger.error("在解压后的目录中未找到测试图像目录")
+                    logger.error("No test image directory found in the extracted directory")
             else:
-                logger.error("找不到任何测试数据集文件")
+                logger.error("Could not find any test dataset files")
         else:
-            logger.info("所有数据均已存在，跳过数据准备")
+            logger.info("All data already exists, skipping data preparation")
         
         # 2. 训练模型
         logger.info("Step 2: Model training")
+        
+        # 创建训练模型的参数对象
         train_args = argparse.Namespace(
-            epochs=config.epoch,
-            model=config.model_name,
-            batch_size=config.train_batch_size,
-            lr=config.lr,
-            prepare=False,  # 已经在步骤1中准备了数据
+            epochs=None,                    # 使用配置文件中的默认轮次
+            model=None,                     # 使用配置文件中的默认模型
+            batch_size=None,
+            lr=None,
+            prepare=False,                  # 我们已经在步骤1中准备了数据
             no_prepare=True,
-            force_train=True,
-            merge_augmented=True,
-            no_merge_augmented=False,
             dataset_path=None,
-            optimizer=config.optimizer,
-            weight_decay=config.weight_decay,
+            merge_augmented=False,
+            no_merge_augmented=False,
+            optimizer=None,
+            weight_decay=None,
             no_lookahead=False,
-            scheduler=config.scheduler,
-            warmup_epochs=config.warmup_epochs,
-            warmup_factor=config.warmup_factor,
+            scheduler=None,
+            warmup_epochs=None,
+            warmup_factor=None,
             no_mixup=False,
-            mixup_alpha=config.mixup_alpha,
-            cutmix_prob=config.cutmix_prob,
+            mixup_alpha=None,
+            cutmix_prob=None,
             no_random_erasing=False,
             no_early_stopping=False,
-            patience=config.early_stopping_patience,
+            patience=None,
             no_amp=False,
-            gradient_clip_val=config.gradient_clip_val,
+            gradient_clip_val=None,
             no_ema=False,
-            ema_decay=config.ema_decay,
-            device=config.device,
-            gpus=config.gpus,
-            seed=config.seed,
-            label_smoothing=config.label_smoothing,
-            no_gradient_checkpointing=False
+            ema_decay=None,
+            device=None,
+            gpus=None,
+            seed=None,
+            label_smoothing=None,
+            no_gradient_checkpointing=False,
+            cleanup=True,                   # 在训练后清理临时文件
+            force_cleanup=True,             # 强制执行清理，不询问用户
+            force_train=False               # 不强制重新训练
         )
+        
+        # 运行训练流程
         train_pipeline(train_args)
         
         # 3. 模型推理
@@ -867,7 +994,7 @@ def main():
         # 确保测试集合并设置正确
         if not hasattr(args, 'merge') or not args.merge:
             # 默认启用测试集合并
-            logger.info("启用测试集合并")
+            logger.info("Test dataset merging enabled")
             config.merge_test_datasets = True
         run_inference(args)
     else:

@@ -5,5 +5,4 @@ __all__ = [
     'PlantDiseaseDataset', 
     'collate_fn',
     'DataPreparation',
-    'setup_data'
 ]

@@ -13,6 +13,7 @@ from config.config import config, paths
 from PIL import Image 
 from concurrent.futures import ThreadPoolExecutor
 from utils.utils import handle_datasets
+import concurrent.futures
 
 # 设置日志记录器
 logger = logging.getLogger('DataLoader')
@@ -21,9 +22,9 @@ logger.setLevel(logging.INFO)
 # 创建日志处理器
 if not logger.handlers:
     # 文件处理器
-    if not os.path.exists(paths.logs_dir):
-        os.makedirs(paths.logs_dir, exist_ok=True)
-    file_handler = logging.FileHandler(os.path.join(paths.logs_dir, 'dataloader.log'))
+    if not os.path.exists(paths.log_dir):
+        os.makedirs(paths.log_dir, exist_ok=True)
+    file_handler = logging.FileHandler(os.path.join(paths.log_dir, 'dataloader.log'))
     file_handler.setLevel(logging.INFO)
     
     # 控制台处理器
@@ -75,43 +76,86 @@ class PlantDiseaseDataset(Dataset):
         
         # 将DataFrame转换为列表以提高处理速度
         imgs = list(zip(label_list["filename"], label_list["label"]))
+        
+        # 对于大数据集，打印警告并建议采样
+        if len(imgs) > 50000:
+            print(f"警告: 数据集非常大 ({len(imgs)} 张图像)，可能会导致内存问题")
+            print("提示: 考虑使用较小的批次大小或减少数据集大小")
+        
         valid_imgs = []
         invalid_imgs = []
         
-        def validate_image(img_data):
-            """验证单个图像是否可读
+        def validate_image_batch(batch):
+            """验证一批图像
             
             参数:
-                img_data: (文件名, 标签)元组
+                batch: 图像数据(文件名, 标签)元组的列表
                 
             返回:
-                (是否有效, 图像数据)元组
+                (有效图像列表, 无效图像列表)元组
             """
-            try:
-                 filename = img_data[0]
-                # 只验证文件头，不完整加载图像
-                 with Image.open(filename) as img:
-                    img.verify()
-                    return True, img_data
-            except Exception:
-                return False, img_data
+            valid = []
+            invalid = []
+            
+            for img_data in batch:
+                try:
+                    filename = img_data[0]
+                    # 检查文件是否存在
+                    if not os.path.exists(filename):
+                        invalid.append(img_data)
+                        continue
+                        
+                    # 检查文件大小，跳过过小文件
+                    file_size = os.path.getsize(filename)
+                    if file_size < 100:  # 小于100字节的文件几乎不可能是有效图像
+                        invalid.append(img_data)
+                        continue
+                        
+                    # 只验证文件头，不完整加载图像
+                    with Image.open(filename) as img:
+                        img.verify()
+                        valid.append(img_data)
+                except Exception:
+                    invalid.append(img_data)
+            
+            return valid, invalid
         
         # 使用多线程并行验证图像
         print("Validating images...")
-        with ThreadPoolExecutor(max_workers=config.aug_num_workers) as executor:
-            # 使用tqdm显示进度
-            results = list(tqdm(
-                executor.map(validate_image, imgs),
-                total=len(imgs),
-                desc="Validating images"
-            ))
         
-        # 分离有效和无效图像
-        for is_valid, img_data in results:
-            if is_valid:
-                valid_imgs.append(img_data)
-            else:
-                invalid_imgs.append(img_data)
+        # 更高效的批处理配置
+        batch_size = 100  # 更大的批次以减少线程创建开销
+        max_workers = min(4, os.cpu_count())  # 限制线程数以减少内存压力
+        
+        # 将图像分成批次
+        batches = []
+        for i in range(0, len(imgs), batch_size):
+            batches.append(imgs[i:min(i + batch_size, len(imgs))])
+        
+        # 使用线程池并行处理所有批次
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 使用tqdm显示进度
+            futures = []
+            for batch in batches:
+                futures.append(executor.submit(validate_image_batch, batch))
+            
+            for future in tqdm(concurrent.futures.as_completed(futures), 
+                             total=len(futures), 
+                             desc="Validating images"):
+                try:
+                    batch_valid, batch_invalid = future.result()
+                    valid_imgs.extend(batch_valid)
+                    invalid_imgs.extend(batch_invalid)
+                except Exception as e:
+                    print(f"Error processing batch: {str(e)}")
+        
+        # 对于极大的数据集，进行采样以减少内存压力
+        if len(valid_imgs) > 100000:
+            print(f"\n数据集非常大 ({len(valid_imgs)} 有效图像)，进行采样以减少内存使用")
+            import random
+            random.seed(config.seed)  # 保持一致性
+            valid_imgs = random.sample(valid_imgs, 50000)
+            print(f"采样后的数据集大小: {len(valid_imgs)} 图像")
         
         if invalid_imgs:
             print(f"\nFound {len(invalid_imgs)} unreadable images that will be skipped:")
@@ -121,6 +165,11 @@ class PlantDiseaseDataset(Dataset):
                 print(f"  ... and {len(invalid_imgs) - 5} more")
             
         print(f"Successfully loaded {len(valid_imgs)} valid images")
+        
+        # 强制清理内存
+        import gc
+        gc.collect()
+        
         return valid_imgs
         
     def _get_transforms(self, transforms, train, test):
@@ -147,12 +196,12 @@ class PlantDiseaseDataset(Dataset):
             )
         ]
         
-        # 训练模式额外的数据增强
-        if not test and train:
+        # 训练模式额外的数据增强，同时检查是否全局启用数据增强
+        if not test and train and config.use_data_aug:
             train_transforms = [
-                    T.RandomRotation(30),
-                    T.RandomHorizontalFlip(),
-                    T.RandomVerticalFlip(),
+                T.RandomRotation(30),
+                T.RandomHorizontalFlip(),
+                T.RandomVerticalFlip(),
                 T.RandomAffine(45)
             ]
             base_transforms[1:1] = train_transforms  # 在ToTensor之前插入训练时的转换
@@ -249,5 +298,4 @@ def get_files(root, mode):
         })
         
     else:
-        raise ValueError("Mode must be either 'train' or 'test'")
-    
+        raise ValueError("Mode must be either 'train' or 'test'") 

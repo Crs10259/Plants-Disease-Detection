@@ -24,6 +24,7 @@ import io
 import re
 from tqdm import tqdm
 from timm.utils import ModelEmaV2 as TimmModelEmaV2
+import concurrent.futures
 
 # 设置日志
 logging.basicConfig(
@@ -133,7 +134,7 @@ except Exception:
     ModelEmaV2 = CustomModelEmaV2
     logger.info("Using custom ModelEmaV2 implementation")
 
-def save_checkpoint(state: Dict[str, Any], is_best: bool, fold: int) -> None:
+def save_checkpoint(state: Dict[str, Any], is_best: bool, fold: int):
     """保存模型检查点
     
     参数:
@@ -157,14 +158,14 @@ class AverageMeter:
         """初始化平均值计算器"""
         self.reset()
 
-    def reset(self) -> None:
+    def reset(self) :
         """重置所有统计值"""
         self.val = 0
         self.avg = 0
         self.sum = 0
         self.count = 0
 
-    def update(self, val: float, n: int = 1) -> None:
+    def update(self, val: float, n: int = 1):
         """更新统计值
         
         参数:
@@ -176,7 +177,7 @@ class AverageMeter:
         self.count += n
         self.avg = self.sum / self.count
 
-def adjust_learning_rate(optimizer: torch.optim.Optimizer, epoch: int) -> None:
+def adjust_learning_rate(optimizer: torch.optim.Optimizer, epoch: int):
     """调整学习率
     
     参数:
@@ -188,7 +189,7 @@ def adjust_learning_rate(optimizer: torch.optim.Optimizer, epoch: int) -> None:
         param_group['lr'] = lr
     logger.info(f"Adjusted learning rate to {lr}")
 
-def get_optimizer(model: nn.Module, name: str = 'adamw') -> torch.optim.Optimizer:
+def get_optimizer(model: nn.Module, name: str = 'adamw'):
     """获取优化器
     
     参数:
@@ -248,7 +249,7 @@ def get_optimizer(model: nn.Module, name: str = 'adamw') -> torch.optim.Optimize
     return optimizer
 
 def get_scheduler(optimizer: torch.optim.Optimizer, num_epochs: int, 
-                 steps_per_epoch: Optional[int] = None) -> torch.optim.lr_scheduler._LRScheduler:
+                 steps_per_epoch: Optional[int] = None):
     """获取学习率调度器
     
     参数:
@@ -294,7 +295,7 @@ def get_scheduler(optimizer: torch.optim.Optimizer, num_epochs: int,
     logger.info(f"Created {config.scheduler} scheduler")
     return scheduler
 
-def mixup_data(x: torch.Tensor, y: torch.Tensor, alpha: float = 1.0) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
+def mixup_data(x: torch.Tensor, y: torch.Tensor, alpha: float = 1.0):
     """执行Mixup数据增强
     
     参数:
@@ -317,7 +318,7 @@ def mixup_data(x: torch.Tensor, y: torch.Tensor, alpha: float = 1.0) -> Tuple[to
     y_a, y_b = y, y[index]
     return mixed_x, y_a, y_b, lam
 
-def cutmix_data(x: torch.Tensor, y: torch.Tensor, alpha: float = 1.0) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
+def cutmix_data(x: torch.Tensor, y: torch.Tensor, alpha: float = 1.0):
     """执行CutMix数据增强
     
     参数:
@@ -363,7 +364,7 @@ def cutmix_data(x: torch.Tensor, y: torch.Tensor, alpha: float = 1.0) -> Tuple[t
     return mixed_x, y_a, y_b, lam
 
 def mixup_criterion(criterion: nn.Module, pred: torch.Tensor, y_a: torch.Tensor, 
-                   y_b: torch.Tensor, lam: float) -> torch.Tensor:
+                   y_b: torch.Tensor, lam: float):
     """Mixup损失函数
     
     参数:
@@ -378,7 +379,7 @@ def mixup_criterion(criterion: nn.Module, pred: torch.Tensor, y_a: torch.Tensor,
     """
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
-def accuracy(output: torch.Tensor, target: torch.Tensor, topk: Tuple[int, ...] = (1,)) -> List[torch.Tensor]:
+def accuracy(output: torch.Tensor, target: torch.Tensor, topk: Tuple[int, ...] = (1,)):
     """计算top-k准确率
     
     参数:
@@ -409,7 +410,7 @@ class Logger:
         """初始化日志记录器"""
         self.file = None
 
-    def open(self, file_path: Union[str, Path], mode: str = None) -> None:
+    def open(self, file_path: Union[str, Path], mode: str = None):
         """打开日志文件
         
         参数:
@@ -417,17 +418,17 @@ class Logger:
             mode: 打开模式
         """
         # 确保路径在logs目录下
-        if isinstance(file_path, str) and not file_path.startswith(paths.logs_dir):
-            file_path = os.path.join(paths.logs_dir, os.path.basename(file_path))
+        if isinstance(file_path, str) and not file_path.startswith(paths.log_dir):
+            file_path = os.path.join(paths.log_dir, os.path.basename(file_path))
         elif isinstance(file_path, Path) and 'logs' not in file_path.parts:
-            file_path = Path(paths.logs_dir) / file_path.name
+            file_path = Path(paths.log_dir) / file_path.name
         
         # 确保logs目录存在
-        os.makedirs(paths.logs_dir, exist_ok=True)
+        os.makedirs(paths.log_dir, exist_ok=True)
         
         self.file = open(file_path, mode) if mode else open(file_path, 'w')
 
-    def write(self, message: str, is_terminal: bool = 1, is_file: bool = 1) -> None:
+    def write(self, message: str, is_terminal: bool = 1, is_file: bool = 1):
         """写入日志消息
         
         参数:
@@ -447,7 +448,7 @@ class Logger:
         """刷新日志文件"""
         self.file.flush()
 
-def get_learning_rate(optimizer: torch.optim.Optimizer) -> float:
+def get_learning_rate(optimizer: torch.optim.Optimizer):
     """获取当前学习率
     
     参数:
@@ -458,7 +459,7 @@ def get_learning_rate(optimizer: torch.optim.Optimizer) -> float:
     """
     return optimizer.param_groups[0]['lr']
 
-def time_to_str(t: float, mode: str = 'min') -> str:
+def time_to_str(t: float, mode: str = 'min'):
     """将时间转换为字符串格式
     
     参数:
@@ -573,7 +574,7 @@ class LabelSmoothingCrossEntropy(nn.Module):
         loss = self.confidence * nll_loss + self.smoothing * smooth_loss
         return loss.mean()
 
-def get_loss_function(device: torch.device) -> nn.Module:
+def get_loss_function(device: torch.device):
     """获取损失函数
     
     参数:
@@ -624,7 +625,7 @@ class MyEncoder(json.JSONEncoder):
         else:
             return super(MyEncoder, self).default(obj)
 
-def create_model_ema(model: nn.Module) -> Optional[ModelEmaV2]:
+def create_model_ema(model: nn.Module):
     """Create EMA model if enabled
     
     Args:
@@ -635,6 +636,15 @@ def create_model_ema(model: nn.Module) -> Optional[ModelEmaV2]:
     """
     if not config.use_ema:
         return None
+    
+    # 静态变量，记录是否已经初始化过
+    if not hasattr(create_model_ema, '_initialized'):
+        create_model_ema._initialized = False
+        
+    # 如果已经初始化过EMA模型，直接返回
+    if create_model_ema._initialized:
+        logger.info("EMA model already initialized, skipping")
+        return None
         
     try:
         # Check if the ModelEmaV2 class from timm is available and working
@@ -643,14 +653,17 @@ def create_model_ema(model: nn.Module) -> Optional[ModelEmaV2]:
         # Test that the model was created correctly
         logger.info(f"Created EMA model with decay rate {config.ema_decay}")
         
+        # 标记已初始化
+        create_model_ema._initialized = True
+        
         return model_ema
     except Exception as e:
         logger.warning(f"Failed to create EMA model: {str(e)}. EMA will be disabled.")
         # Disable EMA for this run to prevent further errors
         config.use_ema = False
-        return None
+    return None
 
-def update_ema(ema: ModelEmaV2, model: nn.Module, iter: int) -> None:
+def update_ema(ema: ModelEmaV2, model: nn.Module, iter: int):
     """Update EMA model
     
     Args:
@@ -658,6 +671,9 @@ def update_ema(ema: ModelEmaV2, model: nn.Module, iter: int) -> None:
         model: Current model
         iter: Current iteration
     """
+    if ema is None:
+        return
+        
     try:
         if iter == 0:
             # Initialize EMA model parameters from the source model
@@ -678,7 +694,7 @@ def update_ema(ema: ModelEmaV2, model: nn.Module, iter: int) -> None:
         logger.warning(f"Error updating EMA model: {str(e)}")
         # Continue without EMA update rather than crashing the training
 
-def handle_datasets(data_type: str = "train", list_only: bool = False) -> Union[str, List[str]]:
+def handle_datasets(data_type: str = "train", list_only: bool = False):
     """查找并处理特定类型的多个数据集
     
     参数:
@@ -826,7 +842,7 @@ def handle_datasets(data_type: str = "train", list_only: bool = False) -> Union[
         # 使用文件数量最多的数据集
         selected_dir = max(target_dirs, key=lambda d: len(glob.glob(os.path.join(d, "**/*"), recursive=True)))
         logger.info(f"Auto-selected largest {data_type} dataset: {selected_dir}")
-        
+    
     return selected_dir
 
 def test_dataset_handling():
@@ -894,7 +910,7 @@ if __name__ == "__main__":
     if args.test:
         test_dataset_handling()
 
-def accuracy(output: torch.Tensor, target: torch.Tensor, topk: Tuple[int, ...] = (1,)) -> List[torch.Tensor]:
+def accuracy(output: torch.Tensor, target: torch.Tensor, topk: Tuple[int, ...] = (1,)):
     """计算top-k准确率
     
     参数:
@@ -917,3 +933,69 @@ def accuracy(output: torch.Tensor, target: torch.Tensor, topk: Tuple[int, ...] =
         correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
         res.append(correct_k.mul_(100.0 / batch_size))
     return res 
+
+def process_images_multithread(images, process_function, max_workers=None, batch_size=50, desc="Processing images"):
+    """使用多线程技术以批处理方式处理大量图像
+    
+    Args:
+        images: 要处理的图像列表
+        process_function: 处理单个图像的函数，应接受一个图像参数并返回处理结果
+        max_workers: 最大线程数，默认为处理器核心数的2倍（但不超过16）
+        batch_size: 每个批次处理的图像数量
+        desc: 进度条描述
+        
+    Returns:
+        处理结果列表
+    """
+    if not images:
+        return []
+        
+    # 设置最大线程数
+    if max_workers is None:
+        max_workers = min(os.cpu_count() * 2, 16)  # 双倍CPU核心数，但不超过16
+    
+    results = []
+    total_images = len(images)
+    
+    # 将图像分成批次
+    batches = []
+    for i in range(0, total_images, batch_size):
+        batch = images[i:min(i + batch_size, total_images)]
+        batches.append(batch)
+    
+    # 处理一批图像的函数
+    def process_batch(batch):
+        batch_results = []
+        for img in batch:
+            try:
+                result = process_function(img)
+                batch_results.append(result)
+            except Exception as e:
+                # 处理错误，返回包含错误信息的结果
+                batch_results.append({"status": "error", "error": str(e), "image": img})
+        return batch_results
+    
+    # 使用线程池处理所有批次
+    with tqdm(total=total_images, desc=desc) as pbar:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # 提交所有批次
+            future_to_batch = {executor.submit(process_batch, batch): batch for batch in batches}
+            
+            # 处理完成的批次
+            for future in concurrent.futures.as_completed(future_to_batch):
+                try:
+                    batch_results = future.result()
+                    results.extend(batch_results)
+                    
+                    # 更新进度条
+                    pbar.update(len(batch_results))
+                except Exception as e:
+                    # 批处理失败
+                    batch = future_to_batch[future]
+                    # 添加错误结果
+                    for _ in batch:
+                        results.append({"status": "batch_error", "error": str(e)})
+                    # 更新进度条
+                    pbar.update(len(batch))
+    
+    return results 

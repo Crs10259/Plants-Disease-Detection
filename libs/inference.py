@@ -17,15 +17,15 @@ from config.config import config, paths
 from models.model import get_net
 
 class InferenceManager:
-    """Inference manager class for plant disease detection"""
+    """植物病害检测推理管理器类"""
     
     def __init__(self, model_path: Optional[str] = None, device: Optional[str] = None, logger=None):
-        """Initialize inference manager
+        """初始化推理管理器
         
-        Args:
-            model_path: Path to model weights
-            device: Device to use ('cuda', 'cpu', or None for auto-detection)
-            logger: Optional logger instance
+        参数:
+            model_path: 模型权重路径
+            device: 使用的设备('cuda', 'cpu'或None表示自动检测)
+            logger: 可选的日志记录器实例
         """
         self.model_path = model_path
         self.device = self._get_device(device)
@@ -33,7 +33,7 @@ class InferenceManager:
         self.logger = logger or self._setup_logger()
         
     def _setup_logger(self):
-        """Set up and return a logger for inference"""
+        """设置并返回推理日志记录器"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -45,13 +45,13 @@ class InferenceManager:
         return logging.getLogger('Inference')
     
     def _get_device(self, device_str: Optional[str] = None) -> torch.device:
-        """Get appropriate device for inference
+        """获取适合推理的设备
         
-        Args:
-            device_str: Device specification ('cuda', 'cpu', or None for auto)
+        参数:
+            device_str: 设备指定('cuda', 'cpu'或None表示自动)
             
-        Returns:
-            torch.device object
+        返回:
+            torch.device对象
         """
         if device_str == "cuda":
             if torch.cuda.is_available():
@@ -61,14 +61,14 @@ class InferenceManager:
         elif device_str == "cpu":
             return torch.device('cpu')
         else:
-            # Auto mode
+            # 自动模式
             return torch.device("cuda" if torch.cuda.is_available() else "cpu")
             
     def load_model(self, model_path: Optional[str] = None) -> None:
-        """Load model from checkpoint
+        """从检查点加载模型
         
-        Args:
-            model_path: Path to model weights (uses self.model_path if None)
+        参数:
+            model_path: 模型权重路径(如果为None则使用self.model_path)
         """
         model_path = model_path or self.model_path
         if model_path is None:
@@ -76,14 +76,14 @@ class InferenceManager:
             
         self.logger.info(f"Loading model from {model_path}")
         
-        # Initialize model architecture
+        # 初始化模型架构
         model = get_net()
         
-        # Load weights
+        # 加载权重
         try:
             checkpoint = torch.load(model_path, map_location=self.device)
             
-            # Handle different checkpoint formats
+            # 处理不同的检查点格式
             if "state_dict" in checkpoint:
                 model.load_state_dict(checkpoint["state_dict"])
             else:
@@ -94,30 +94,30 @@ class InferenceManager:
             self.logger.error(f"Error loading model: {str(e)}")
             raise
             
-        # Move model to device and set to evaluation mode
+        # 将模型移至设备并设置为评估模式
         self.model = model.to(self.device)
         self.model.eval()
         
     def predict_single(self, image_path: str) -> np.ndarray:
-        """Make prediction for a single image
+        """对单张图像进行预测
         
-        Args:
-            image_path: Path to image file
+        参数:
+            image_path: 图像文件路径
             
-        Returns:
-            Numpy array of class probabilities
+        返回:
+            类别概率的NumPy数组
         """
         if self.model is None:
             raise RuntimeError("Model not loaded. Call load_model() first")
             
-        # Prepare image transform
+        # 准备图像变换
         transform = transforms.Compose([
             transforms.Resize((config.img_height, config.img_weight)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
         
-        # Load and transform image
+        # 加载并变换图像
         try:
             image = Image.open(image_path).convert('RGB')
             image_tensor = transform(image).unsqueeze(0).to(self.device)
@@ -125,7 +125,7 @@ class InferenceManager:
             self.logger.error(f"Error loading image {image_path}: {str(e)}")
             raise
             
-        # Make prediction
+        # 进行预测
         with torch.no_grad():
             output = self.model(image_tensor)
             probabilities = torch.nn.Softmax(dim=1)(output)
@@ -133,15 +133,15 @@ class InferenceManager:
         return probabilities.cpu().numpy()[0]
     
     def predict_batch(self, image_folder: str, batch_size: int = 16, num_workers: int = 4) -> List[Dict[str, Any]]:
-        """Make predictions for all images in a folder
+        """对文件夹中的所有图像进行预测
         
-        Args:
-            image_folder: Path to folder containing images
-            batch_size: Batch size for inference
-            num_workers: Number of workers for data loading
+        参数:
+            image_folder: 包含图像的文件夹路径
+            batch_size: 推理的批次大小
+            num_workers: 数据加载的工作线程数
             
-        Returns:
-            List of dictionaries with prediction results
+        返回:
+            包含预测结果的字典列表
         """
         if self.model is None:
             raise RuntimeError("Model not loaded. Call load_model() first")
@@ -195,11 +195,11 @@ class InferenceManager:
         return results
     
     def save_predictions(self, predictions: List[Dict], output_file: str = paths.prediction_file) -> None:
-        """Save predictions to JSON file
+        """将预测结果保存到JSON文件
         
-        Args:
-            predictions: List of prediction dictionaries
-            output_file: Output file path
+        参数:
+            predictions: 预测字典列表
+            output_file: 输出文件路径
         """
         # Create output directory if it doesn't exist
         os.makedirs(os.path.dirname(output_file), exist_ok=True)
@@ -222,13 +222,13 @@ class InferenceManager:
             raise
 
 class InferenceDataset(Dataset):
-    """Dataset class for inference"""
+    """推理数据集类"""
     
     def __init__(self, file_paths):
-        """Initialize dataset
+        """初始化数据集
         
-        Args:
-            file_paths: List of image file paths
+        参数:
+            file_paths: 图像文件路径列表
         """
         self.file_paths = file_paths
         self.transforms = transforms.Compose([
@@ -238,9 +238,18 @@ class InferenceDataset(Dataset):
         ])
         
     def __len__(self):
+        """返回数据集大小"""
         return len(self.file_paths)
         
     def __getitem__(self, idx):
+        """获取单个数据样本
+        
+        参数:
+            idx: 索引
+            
+        返回:
+            (图像张量, 图像路径)元组
+        """
         img_path = self.file_paths[idx]
         try:
             image = Image.open(img_path).convert('RGB')

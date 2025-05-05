@@ -119,7 +119,8 @@ def get_swin_transformer():
     blocks_to_unfreeze = 1
     
     for name, param in model.named_parameters():
-        if 'layers.3' in name or 'head' in name:  # 只训练最后一个block和头部
+        # Using total_blocks and blocks_to_unfreeze to determine which layers to train
+        if f'layers.{total_blocks - blocks_to_unfreeze}' in name or 'head' in name:
             param.requires_grad = True
         else:
             param.requires_grad = False

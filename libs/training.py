@@ -26,43 +26,75 @@ from pathlib import Path
 from utils.utils import ModelEmaV2
 
 class Trainer:
-    """Training manager class that encapsulates all training functionality"""
+    """训练管理器类，封装所有训练功能"""
     
     def __init__(self, config, logger=None):
-        """Initialize the trainer
+        """初始化训练器
         
-        Args:
-            config: Configuration object
-            logger: Optional logger instance
+        参数:
+            config: 配置对象
+            logger: 可选的日志记录器实例
         """
         self.config = config
         
-        # Set up logging
+        # 设置日志记录
         self.logger = logger or self._setup_logger()
         
-        # Initialize environment and devices
+        # 初始化环境和设备
         self.setup_environment()
         self.device = self.get_device()
         self.create_directories()
         
-        # Initialize performance monitoring
+        # 初始化性能监控
         self.memory_tracker = MemoryTracker()
         self.performance_metrics = PerformanceMetrics()
         
     def _setup_logger(self):
-        """Set up and return a logger for training"""
+        """设置并返回训练日志记录器"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler(paths.training_log),
+                logging.FileHandler(paths.training_log, encoding="utf-8"),
                 logging.StreamHandler()
             ]
         )
-        return logging.getLogger('Training')
+        
+        # 创建详细的训练日志文件
+        detailed_log_file = os.path.join(paths.log_dir, "train_detailed.log")
+        
+        # 确保训练日志记录器正确设置
+        logger = logging.getLogger('Training')
+        
+        # 删除旧的handler以避免重复
+        for handler in logger.handlers[:]:
+            logger.removeHandler(handler)
+            
+        # 添加新的handler
+        file_handler = logging.FileHandler(paths.training_log, encoding="utf-8")
+        file_handler.setLevel(logging.INFO)
+        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        
+        detailed_handler = logging.FileHandler(detailed_log_file, encoding="utf-8")
+        detailed_handler.setLevel(logging.DEBUG)
+        detailed_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        
+        # 添加handler
+        logger.addHandler(file_handler)
+        logger.addHandler(detailed_handler)
+        logger.addHandler(console_handler)
+        
+        # 设置日志级别
+        logger.setLevel(logging.DEBUG)
+        
+        return logger
         
     def setup_environment(self) -> None:
-        """Set random seeds and CUDA environment"""
+        """设置随机种子和CUDA环境"""
         random.seed(self.config.seed)
         np.random.seed(self.config.seed)
         torch.manual_seed(self.config.seed)
@@ -74,7 +106,7 @@ class Trainer:
         warnings.filterwarnings('ignore')
 
     def get_device(self) -> torch.device:
-        """Get training device"""
+        """获取训练设备"""
         if self.config.device == "cuda":
             if torch.cuda.is_available():
                 device = torch.device('cuda')
@@ -113,21 +145,21 @@ class Trainer:
     def train_epoch(self, model: nn.Module, train_dataloader: DataLoader, 
                    criterion: nn.Module, optimizer: optim.Optimizer, epoch: int, 
                    log: Optional[Logger] = None, scaler: Optional[GradScaler] = None, 
-                   model_ema: Optional["ModelEmaV2"] = None) -> Tuple[float, float, float]:
-        """Train for a single epoch
+                   model_ema: Optional[ModelEmaV2] = None):
+        """训练单个轮次
         
-        Args:
-            model: Model
-            train_dataloader: Training data loader
-            criterion: Loss function
-            optimizer: Optimizer
-            epoch: Current epoch
-            log: Log recorder, created if None
-            scaler: Gradient scaler for mixed precision
-            model_ema: EMA model
+        参数:
+            model: 模型
+            train_dataloader: 训练数据加载器
+            criterion: 损失函数
+            optimizer: 优化器
+            epoch: 当前轮次
+            log: 日志记录器，如果为None则创建
+            scaler: 用于混合精度的梯度缩放器
+            model_ema: EMA模型
             
-        Returns:
-            Training loss and accuracy
+        返回:
+            训练损失和准确率
         """
         # Create a logger if not provided
         if log is None:
@@ -143,13 +175,31 @@ class Trainer:
         error_files = []
         batch_times = []
         
-        for iter, batch in enumerate(progress_bar):
-            batch_start = timer()
+        # 强制初始垃圾回收
+        import gc
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
             
+        # 添加异常计数器和最大尝试次数
+        error_count = 0
+        max_errors = 50  # 允许的最大连续错误数
+        consecutive_errors = 0
+        
+        for iter, batch in enumerate(progress_bar):
             try:
+                # 检查是否应该终止训练（如果连续错误过多）
+                if consecutive_errors >= max_errors:
+                    log.write(f"Too many consecutive errors ({consecutive_errors}), stopping training\n")
+                    self.logger.error(f"Too many consecutive errors ({consecutive_errors}), stopping training")
+                    break
+                    
+                batch_start = timer()
+                
                 # Ensure batch is valid
                 if len(batch) != 2:
                     log.write(f"Skipping error batch in iteration {iter}\n")
+                    consecutive_errors += 1
                     continue
                     
                 input, target = batch
@@ -157,6 +207,13 @@ class Trainer:
                 # Ensure data is valid
                 if input is None or len(input) == 0:
                     log.write(f"Skipping empty input in iteration {iter}\n")
+                    consecutive_errors += 1
+                    continue
+                
+                # 检查输入张量是否有空值或无穷大
+                if torch.isnan(input).any() or torch.isinf(input).any():
+                    log.write(f"Skipping batch with NaN or Inf values in iteration {iter}\n")
+                    consecutive_errors += 1
                     continue
                     
                 input = input.to(self.device)
@@ -164,16 +221,20 @@ class Trainer:
                 
                 # Apply Mixup or CutMix data augmentation
                 if self.config.use_mixup:
-                    # Randomly choose between Mixup and CutMix
-                    r = np.random.rand(1)
-                    if r < self.config.cutmix_prob:
-                        # Use CutMix
-                        input, target_a, target_b, lam = cutmix_data(input, target, self.config.mixup_alpha)
-                        use_mixup = True
-                    else:
-                        # Use Mixup
-                        input, target_a, target_b, lam = mixup_data(input, target, self.config.mixup_alpha)
-                        use_mixup = True
+                    try:
+                        # Randomly choose between Mixup and CutMix
+                        r = np.random.rand(1)
+                        if r < self.config.cutmix_prob:
+                            # Use CutMix
+                            input, target_a, target_b, lam = cutmix_data(input, target, self.config.mixup_alpha)
+                            use_mixup = True
+                        else:
+                            # Use Mixup
+                            input, target_a, target_b, lam = mixup_data(input, target, self.config.mixup_alpha)
+                            use_mixup = True
+                    except Exception as e:
+                        log.write(f"Error applying mixup/cutmix in iteration {iter}: {str(e)}, continuing without augmentation\n")
+                        use_mixup = False
                 else:
                     use_mixup = False
                 
@@ -222,7 +283,10 @@ class Trainer:
                 
                 # Update EMA model
                 if model_ema is not None:
-                    update_ema(model_ema, model, iter)
+                    try:
+                        update_ema(model_ema, model, iter)
+                    except Exception as e:
+                        log.write(f"Error updating EMA in iteration {iter}: {str(e)}\n")
                 
                 # Calculate metrics
                 if use_mixup:
@@ -239,6 +303,9 @@ class Trainer:
                 batch_time = timer() - batch_start
                 batch_times.append(batch_time)
                 
+                # 重置连续错误计数器
+                consecutive_errors = 0
+                
                 # Update progress bar
                 progress_bar.set_postfix({
                     'loss': f'{train_losses.avg:.3f}',
@@ -253,12 +320,20 @@ class Trainer:
                     if self.memory_tracker.should_warn():
                         self.logger.warning(self.memory_tracker.get_warning())
                 
+                # 周期性清理内存
+                if iter % 100 == 0:  # 每100个批次进行一次垃圾回收
+                    gc.collect()
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                
                 # Free memory
                 del output
                 if self.device.type == 'cuda':
                     torch.cuda.empty_cache()
                 
             except Exception as e:
+                consecutive_errors += 1
+                error_count += 1
                 if hasattr(batch, '__getitem__') and len(batch) > 1 and isinstance(batch[1], list) and len(batch[1]) > 0:
                     # Record error files
                     error_files.extend(batch[1])
@@ -269,6 +344,14 @@ class Trainer:
                 
         if error_files:
             log.write(f"Found {len(error_files)} problematic files in this epoch.\n")
+        
+        if error_count > 0:
+            log.write(f"Total errors in this epoch: {error_count}\n")
+        
+        # 最终清理内存
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
         
         # Update performance metrics
         self.performance_metrics.update_epoch_metrics(
@@ -283,15 +366,15 @@ class Trainer:
         return train_losses.avg, train_top1.avg, train_top2.avg
 
     def train(self, epochs=None, train_loader=None, val_loader=None):
-        """Full training loop with validation
+        """完整的训练循环，包含验证
         
-        Args:
-            epochs: Number of epochs (defaults to config.epoch)
-            train_loader: Training data loader (created if None)
-            val_loader: Validation data loader (created if None)
+        参数:
+            epochs: 轮次数（默认使用config.epoch）
+            train_loader: 训练数据加载器（如果为None则创建）
+            val_loader: 验证数据加载器（如果为None则创建）
             
-        Returns:
-            Dictionary with training results
+        返回:
+            包含训练结果的字典
         """
         epochs = epochs or self.config.epoch
         
@@ -421,16 +504,16 @@ class Trainer:
         return self.performance_metrics.get_summary()
     
     def validate(self, model, val_loader, criterion, epoch):
-        """Validate the model
+        """验证模型
         
-        Args:
-            model: Model to validate
-            val_loader: Validation data loader
-            criterion: Loss function
-            epoch: Current epoch
+        参数:
+            model: 要验证的模型
+            val_loader: 验证数据加载器
+            criterion: 损失函数
+            epoch: 当前轮次
             
-        Returns:
-            Validation loss and accuracy
+        返回:
+            验证损失和准确率
         """
         val_losses = AverageMeter()
         val_top1 = AverageMeter()
@@ -462,10 +545,10 @@ class Trainer:
         return val_losses.avg, val_top1.avg
     
     def _get_train_loader(self):
-        """Create and return training data loader based on configuration settings
+        """基于配置设置创建并返回训练数据加载器
         
-        Returns the appropriate dataloader based on merged dataset if available,
-        otherwise falls back to the best available dataset.
+        返回基于合并数据集的适当数据加载器（如果有），
+        否则返回最佳可用数据集。
         """
         # 使用handle_datasets函数获取适当的训练数据路径
         # 该函数已经修改为优先使用合并的数据集(如果有)，否则使用配置策略选择单个数据集
@@ -511,42 +594,42 @@ class Trainer:
         )
 
 class MemoryTracker:
-    """Memory usage monitor"""
+    """内存使用监视器"""
     
     def __init__(self, warning_threshold: float = 0.9):
-        """Initialize memory monitor
+        """初始化内存监视器
         
-        Args:
-            warning_threshold: Memory usage warning threshold (as proportion of total memory)
+        参数:
+            warning_threshold: 内存使用警告阈值（占总内存的比例）
         """
         self.warning_threshold = warning_threshold
         self.current_usage = 0
         self.peak_usage = 0
         
     def update(self) -> None:
-        """Update memory usage statistics"""
+        """更新内存使用统计"""
         if torch.cuda.is_available():
             current = torch.cuda.memory_allocated() / torch.cuda.max_memory_allocated()
             self.peak_usage = max(self.peak_usage, current)
             self.current_usage = current
         
     def should_warn(self) -> bool:
-        """Check if warning should be issued"""
+        """检查是否应该发出警告"""
         return self.current_usage > self.warning_threshold
         
     def get_warning(self) -> str:
-        """Get warning message"""
+        """获取警告消息"""
         return f"High memory usage: {self.current_usage:.1%} of available memory"
         
     def get_current_usage(self) -> float:
-        """Get current memory usage"""
+        """获取当前内存使用率"""
         return self.current_usage
 
 class PerformanceMetrics:
-    """Performance metrics tracker"""
+    """性能指标跟踪器"""
     
     def __init__(self):
-        """Initialize performance metrics tracker"""
+        """初始化性能指标跟踪器"""
         self.metrics = {
             'loss': [],
             'top1': [],
@@ -561,16 +644,16 @@ class PerformanceMetrics:
     def update_epoch_metrics(self, epoch: int, loss: float, top1: float, 
                            top2: float, batch_time: float, memory_usage: float,
                            val_loss: float = None) -> None:
-        """Update per-epoch performance metrics
+        """更新每轮性能指标
         
-        Args:
-            epoch: Epoch
-            loss: Loss value
-            top1: Top-1 accuracy
-            top2: Top-2 accuracy
-            batch_time: Average batch time
-            memory_usage: Memory usage rate
-            val_loss: Validation loss (optional)
+        参数:
+            epoch: 轮次
+            loss: 损失值
+            top1: Top-1准确率
+            top2: Top-2准确率
+            batch_time: 平均批次时间
+            memory_usage: 内存使用率
+            val_loss: 验证损失（可选）
         """
         self.epochs.append(epoch)
         self.metrics['loss'].append(loss)
@@ -583,13 +666,13 @@ class PerformanceMetrics:
             self.metrics['val_loss'].append(val_loss)
         
     def should_stop(self, val_loss: float) -> bool:
-        """Check if training should stop early
+        """检查训练是否应该提前停止
         
-        Args:
-            val_loss: Current validation loss
+        参数:
+            val_loss: 当前验证损失
             
-        Returns:
-            Boolean indicating whether to stop training
+        返回:
+            表示是否停止训练的布尔值
         """
         if not self.metrics['val_loss']:
             self.metrics['val_loss'].append(val_loss)
@@ -604,7 +687,7 @@ class PerformanceMetrics:
         return self.patience_counter >= config.early_stopping_patience
         
     def get_summary(self) -> Dict[str, Any]:
-        """Get performance metrics summary"""
+        """获取性能指标摘要"""
         return {
             'best_top1': max(self.metrics['top1']),
             'best_epoch': self.epochs[np.argmax(self.metrics['top1'])],
@@ -613,29 +696,29 @@ class PerformanceMetrics:
         }
 
 def init_logger(log_name='train_details.log') -> Logger:
-    """Initialize a Logger object
+    """初始化Logger对象
     
-    Args:
-        log_name: Log file name
+    参数:
+        log_name: 日志文件名
         
-    Returns:
-        Initialized Logger object
+    返回:
+        初始化后的Logger对象
     """
     # Ensure logs directory exists
-    os.makedirs(paths.logs_dir, exist_ok=True)
+    os.makedirs(paths.log_dir, exist_ok=True)
     
     log = Logger()
-    log.open(os.path.join(paths.logs_dir, log_name))
+    log.open(os.path.join(paths.log_dir, log_name))
     return log
 
 def train_model(cfg=None):
-    """Train model with given configuration
+    """使用给定配置训练模型
     
-    Args:
-        cfg: Optional configuration object (uses default if None)
+    参数:
+        cfg: 可选配置对象（如果为None则使用默认配置）
         
-    Returns:
-        Dictionary with training results
+    返回:
+        包含训练结果的字典
     """
     try:
         # Use provided config or default

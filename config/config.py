@@ -10,8 +10,6 @@ class PathConfig:
     # 基础目录
     base_dir: str = "./"
     data_dir: str = "./data/"
-    models_dir: str = "./models/"
-    # downloads_dir: str = "./data/downloads/"  
     
     # 数据目录
     train_dir: str = "./data/train/"
@@ -35,23 +33,25 @@ class PathConfig:
     augmented_images_dir: str = "./data/aug/images/"
     
     # 模型目录
-    weights_dir: str = "./weights/"
-    best_weights_dir: str = "./weights/best/"
+    weight_dir: str = "./weight/"
+    best_weight_dir: str = "./weight/best/"
     
     # 输出目录
     submit_dir: str = "./submit/"
-    logs_dir: str = "./logs/"
+    log_dir: str = "./log/"
     
     # 日志文件
-    training_log: str = "./logs/training.log"
-    data_aug_log: str = "./logs/data_augmentation.log"
-    data_proc_log: str = "./logs/data_processing.log"
-    inference_log: str = "./logs/inference.log"
-    utils_log: str = "./logs/utils.log"
+    training_log: str = "./log/training.log"
+    data_aug_log: str = "./log/data_augmentation.log"
+    data_proc_log: str = "./log/data_processing.log"
+    inference_log: str = "./log/inference.log"
+    utils_log: str = "./log/utils.log"
     
     # 数据文件
-    train_annotations: str = "./data/temp/labels/AgriculturalDisease_train_annotations.json"
-    val_annotations: str = "./data/temp/labels/AgriculturalDisease_validation_annotations.json"
+    train_dataset_folder_name: str = "AgriculturalDisease_trainingset"
+    val_dataset_folder_name: str = "AgriculturalDisease_validationset"
+    train_annotation: str = "./data/temp/labels/AgriculturalDisease_train_annotations.json"
+    val_annotation: str = "./data/temp/labels/AgriculturalDisease_validation_annotations.json"
     prediction_file: str = "./submit/prediction.json"
     
     def __post_init__(self):
@@ -72,7 +72,7 @@ class PathConfig:
         # 创建关键目录
         essential_dirs = [
             self.data_dir,
-            self.logs_dir,
+            self.log_dir,
             self.train_dir,
             self.test_dir,
             self.test_images_dir,
@@ -81,13 +81,12 @@ class PathConfig:
             self.temp_images_dir, 
             self.temp_labels_dir,
             self.temp_dataset_dir,
-            self.weights_dir,
-            self.best_weights_dir,
+            self.weight_dir,
+            self.best_weight_dir,
             self.submit_dir,
             self.aug_dir,
             self.aug_train_dir,
             self.augmented_images_dir
-            # self.downloads_dir  
         ]
         
         for directory in essential_dirs:
@@ -156,10 +155,10 @@ class DefaultConfigs:
 
     # 训练参数 Training Parameters
     epoch: int = 40  # 训练轮数
-    train_batch_size: int = 24  # 训练批次大小
-    val_batch_size: int = 32  # 验证批次大小
-    test_batch_size: int = 32  # 测试批次大小
-    num_workers: str = 'auto'  # 数据加载线程数
+    train_batch_size: int = 16  # 训练批次大小，降低以减少内存使用
+    val_batch_size: int = 24  # 验证批次大小
+    test_batch_size: int = 24  # 测试批次大小
+    num_workers: str = 4  # 数据加载线程数，设置为固定值以避免过多线程竞争资源
     img_height: int = 380  # 图像高度
     img_weight: int = 380  # 图像宽度
     num_classes: int = 59  # 类别数量
@@ -222,10 +221,10 @@ class DefaultConfigs:
         # 初始化依赖于paths的字段
         self.train_data = self.paths.train_dir
         self.test_data = self.paths.test_images_dir
-        self.weights = self.paths.weights_dir
-        self.best_weights = self.paths.best_weights_dir
+        self.weights = self.paths.weight_dir
+        self.best_weights = self.paths.best_weight_dir
         self.submit = self.paths.submit_dir
-        self.logs = self.paths.logs_dir
+        self.logs = self.paths.log_dir
         self.aug_source_path = self.paths.train_dir
         self.aug_target_path = self.paths.aug_train_dir
         
