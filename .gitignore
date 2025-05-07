@@ -44,6 +44,7 @@ checkpoints/
 logs/
 submit/
 aug/
+tools/
 *.log
 *.pth
 *.pt

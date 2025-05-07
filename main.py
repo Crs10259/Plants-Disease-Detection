@@ -367,7 +367,7 @@ def train_pipeline(args: argparse.Namespace) -> None:
                             break
                     
                     if not already_included:
-                        image_files = [f for f in files if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
+                        image_files = [f for f in files if f.lower().endswith(('.jpg', '.jpeg', '.png', '.bmp', '.webp', '.heic'))]
                         if image_files and os.path.basename(root) != "labels":
                             potential_image_dirs.append(root)
                             potential_image_dirs_abs.append(root_abs)
