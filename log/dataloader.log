@@ -1,0 +1,16 @@
+2025-05-05 13:26:14,026 - DataLoader - INFO - Loading train dataset from: ./data\aug\train
+2025-05-05 13:26:17,482 - DataLoader - INFO - Loading training dataset (286944 images)
+2025-05-05 13:51:53,680 - DataLoader - INFO - Loading train dataset from: ./data\aug\train
+2025-05-05 13:51:56,582 - DataLoader - INFO - Loading training dataset (286944 images)
+2025-05-05 15:18:23,246 - DataLoader - INFO - Loading train dataset from: ./data\aug\train
+2025-05-05 15:18:25,997 - DataLoader - INFO - Loading training dataset (286944 images)
+2025-05-05 15:30:43,148 - DataLoader - INFO - Loading train dataset from: ./data\aug\train
+2025-05-05 15:30:46,007 - DataLoader - INFO - Loading training dataset (286944 images)
+2025-05-05 16:09:42,561 - DataLoader - INFO - Loading train dataset from: ./data\aug\train
+2025-05-05 16:09:45,430 - DataLoader - INFO - Loading training dataset (275304 images)
+2025-05-05 17:04:53,610 - DataLoader - INFO - Loading train dataset from: ./data\aug\train
+2025-05-05 17:04:56,333 - DataLoader - INFO - Loading training dataset (286944 images)
+2025-05-05 17:33:15,715 - DataLoader - INFO - Loading train dataset from: ./data\aug\train
+2025-05-05 17:33:18,653 - DataLoader - INFO - Loading training dataset (286944 images)
+2025-05-05 17:35:34,176 - DataLoader - INFO - Loading train dataset from: ./data\aug\train
+2025-05-05 17:35:41,527 - DataLoader - INFO - Loading training dataset (286944 images)

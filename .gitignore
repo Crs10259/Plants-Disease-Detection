@@ -40,18 +40,9 @@ venv.bak/
 
 # 项目特定文件和目录
 data/
-checkpoints/
 logs/
 submit/
 aug/
-tools/
-*.log
-*.pth
-*.pt
-*.tar
-*.pkl
-*.h5
-baseline.json
 
 # 系统文件
 .DS_Store

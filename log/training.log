@@ -1,0 +1,28 @@
+2025-05-05 15:18:06,248 - Training - INFO - Using CPU (GPU is not available)
+2025-05-05 15:18:07,025 - Training - INFO - Training started
+2025-05-05 15:18:17,864 - Training - INFO - Using training data from: ./data\aug\train
+2025-05-05 15:18:28,416 - Training - INFO - Training dataset contains 286944 images
+2025-05-05 15:30:18,527 - Training - INFO - Using CPU (GPU is not available)
+2025-05-05 15:30:19,010 - Training - INFO - Training started
+2025-05-05 15:30:37,558 - Training - INFO - Using training data from: ./data\aug\train
+2025-05-05 15:30:48,501 - Training - INFO - Training dataset contains 286944 images
+2025-05-05 16:09:24,804 - Training - INFO - Using CPU (GPU is not available)
+2025-05-05 16:09:25,463 - Training - INFO - Training started
+2025-05-05 16:09:36,492 - Training - INFO - Using training data from: ./data\aug\train
+2025-05-05 16:09:48,935 - Training - INFO - Training dataset contains 275304 images
+2025-05-05 16:18:01,344 - Training - INFO - Using CPU (GPU is not available)
+2025-05-05 16:18:02,062 - Training - INFO - Training started
+2025-05-05 16:18:02,122 - Training - INFO - Using training data from: ./data\train
+2025-05-05 16:18:02,130 - Training - ERROR - No image files found in training path: ./data\train
+2025-05-05 17:04:36,516 - Training - INFO - Using CPU (GPU is not available)
+2025-05-05 17:04:37,649 - Training - INFO - Training started
+2025-05-05 17:04:48,831 - Training - INFO - Using training data from: ./data\aug\train
+2025-05-05 17:04:58,753 - Training - INFO - Training dataset contains 286944 images
+2025-05-05 17:33:03,248 - Training - INFO - Using CPU (GPU is not available)
+2025-05-05 17:33:03,834 - Training - INFO - Training started
+2025-05-05 17:33:09,990 - Training - INFO - Using training data from: ./data\aug\train
+2025-05-05 17:33:21,214 - Training - INFO - Training dataset contains 286944 images
+2025-05-05 17:35:10,017 - Training - INFO - Using CPU (GPU is not available)
+2025-05-05 17:35:11,224 - Training - INFO - Training started
+2025-05-05 17:35:21,951 - Training - INFO - Using training data from: ./data\aug\train
+2025-05-05 17:35:48,207 - Training - INFO - Training dataset contains 286944 images
