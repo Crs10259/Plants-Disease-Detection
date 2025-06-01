@@ -40,7 +40,7 @@ venv.bak/
 
 # 项目特定文件和目录
 data/
-logs/
+log/
 submit/
 aug/
 
