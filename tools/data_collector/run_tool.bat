@@ -1,8 +1,8 @@
 @echo off
-echo 启动植物病害数据集制作工具...
+echo start data collector...
 python start.py
 if %errorlevel% neq 0 (
-    echo 程序启动失败，请检查错误信息。
+    echo program start failed, please check the error information.
     pause
     exit /b %errorlevel%
 )

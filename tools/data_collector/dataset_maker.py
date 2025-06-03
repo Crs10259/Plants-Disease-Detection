@@ -7,7 +7,6 @@ import random
 from typing import Dict, List, Any
 import time
 import io
-from tqdm import tqdm
 import concurrent.futures
 import math
 from PIL import Image
