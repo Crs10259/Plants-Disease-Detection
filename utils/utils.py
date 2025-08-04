@@ -6,22 +6,15 @@ import json
 import numpy as np
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple, Union, Optional, Any, Set, Type, TYPE_CHECKING
-from config.config import config, paths
+from typing import Dict, List, Tuple, Union, Optional, Any
+from config import config, paths
 from torch import nn
 import torch.nn.functional as F
 from timm.scheduler.cosine_lr import CosineLRScheduler
 from torch.optim.lr_scheduler import OneCycleLR
-from datetime import datetime
 import glob
-import random
-import time
 import warnings
 from torch.optim import *
-from torch.utils.data import DataLoader
-import math
-import io
-import re
 from tqdm import tqdm
 from timm.utils import ModelEmaV2 as TimmModelEmaV2
 import concurrent.futures

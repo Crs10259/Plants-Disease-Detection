@@ -2,7 +2,7 @@ import torch
 import torchvision
 import torch.nn.functional as F 
 from torch import nn
-from config.config import config
+from config import config
 import timm
 import os
 import ssl

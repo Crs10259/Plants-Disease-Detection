@@ -4,7 +4,7 @@ import torch
 import numpy as np 
 import warnings
 import logging
-from config.config import config, paths
+from config import config, paths
 from torch.utils.data import DataLoader
 from dataset.dataloader import *    
 from timeit import default_timer as timer

@@ -14,7 +14,7 @@ project_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(project_dir)
 
 # 导入配置
-from config.config import config, paths
+from config import config, paths
 from dataset.data_prep import normalize_path, setup_data
 from libs.inference import predict
 

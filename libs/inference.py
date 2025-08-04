@@ -13,7 +13,7 @@ from torchvision import transforms
 from tqdm import tqdm
 from collections import OrderedDict
 from utils.utils import MyEncoder
-from config.config import config, paths
+from config import config, paths
 from models.model import get_net
 
 class InferenceManager:

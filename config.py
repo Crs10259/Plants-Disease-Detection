@@ -1,7 +1,6 @@
 from typing import List, Tuple, Optional
 from dataclasses import dataclass, field
 import os
-from pathlib import Path
 
 @dataclass
 class PathConfig:

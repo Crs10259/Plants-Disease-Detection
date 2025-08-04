@@ -9,7 +9,7 @@ from glob import glob
 from tqdm import tqdm
 from torch.utils.data import Dataset
 from torchvision import transforms as T 
-from config.config import config, paths
+from config import config, paths
 from PIL import Image 
 from concurrent.futures import ThreadPoolExecutor
 from utils.utils import handle_datasets
