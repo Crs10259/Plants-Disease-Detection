@@ -663,7 +663,7 @@ def create_model_ema(model: nn.Module):
         config.use_ema = False
     return None
 
-def update_ema(ema: ModelEmaV2, model: nn.Module, iter: int): # type: ignore
+def update_ema(ema: ModelEmaV2, model: nn.Module, iter: int):
     """Update EMA model
     
     Args:
