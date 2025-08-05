@@ -26,3 +26,55 @@
 2025-05-05 17:35:11,224 - Training - INFO - Training started
 2025-05-05 17:35:21,951 - Training - INFO - Using training data from: ./data\aug\train
 2025-05-05 17:35:48,207 - Training - INFO - Training dataset contains 286944 images
+2025-08-04 15:25:40,905 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-04 15:25:41,493 - Training - INFO - Using training data from: ./data/merged_train/
+2025-08-04 15:25:44,291 - Training - INFO - Training dataset contains 313760 images
+2025-08-04 15:28:47,114 - Training - INFO - Using validation data from: ./data\val
+2025-08-04 15:28:47,530 - Training - INFO - Validation dataset contains 9078 images
+2025-08-04 15:28:55,574 - Training - INFO - Continuing training from epoch 9/40
+2025-08-04 15:28:56,057 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-04 15:28:56,093 - Training - INFO - Model moved to cuda
+2025-08-04 15:28:56,093 - Training - INFO - CUDA device count: 1
+2025-08-04 15:28:56,093 - Training - INFO - Current CUDA device: 0
+2025-08-04 15:28:56,094 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-04 15:28:56,094 - Training - INFO - Training started
+2025-08-04 15:28:56,098 - Training - INFO - Restored optimizer state
+2025-08-04 15:50:57,890 - Training - ERROR - Too many consecutive errors (50), stopping training
+2025-08-04 15:52:42,074 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-04 15:52:43,392 - Training - INFO - Using training data from: ./data/merged_train/
+2025-08-04 15:52:49,952 - Training - INFO - Training dataset contains 313760 images
+2025-08-04 15:53:42,234 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-04 15:53:42,739 - Training - INFO - Using training data from: ./data/merged_train/
+2025-08-04 15:53:45,513 - Training - INFO - Training dataset contains 313760 images
+2025-08-04 15:54:00,274 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-04 15:54:00,806 - Training - INFO - Using training data from: ./data/merged_train/
+2025-08-04 15:55:03,642 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-04 15:55:04,189 - Training - INFO - Using training data from: ./data/merged_train/
+2025-08-04 15:55:06,985 - Training - INFO - Training dataset contains 313760 images
+2025-08-04 15:55:23,480 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-04 15:55:23,978 - Training - INFO - Using training data from: ./data/merged_train/
+2025-08-04 15:55:26,520 - Training - INFO - Training dataset contains 313760 images
+2025-08-04 15:57:34,426 - Training - INFO - Using validation data from: ./data\val
+2025-08-04 15:57:34,813 - Training - INFO - Validation dataset contains 9078 images
+2025-08-04 15:57:42,895 - Training - INFO - Continuing training from epoch 9/40
+2025-08-04 15:57:43,364 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-04 15:57:43,404 - Training - INFO - Model moved to cuda
+2025-08-04 15:57:43,404 - Training - INFO - CUDA device count: 1
+2025-08-04 15:57:43,404 - Training - INFO - Current CUDA device: 0
+2025-08-04 15:57:43,404 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-04 15:57:43,405 - Training - INFO - Training started
+2025-08-04 15:57:43,408 - Training - INFO - Restored optimizer state
+2025-08-04 15:59:21,193 - Training - ERROR - Too many consecutive errors (50), stopping training
+2025-08-04 16:00:38,532 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-04 16:00:39,102 - Training - INFO - Using training data from: ./data/merged_train/
+2025-08-04 16:00:42,155 - Training - INFO - Training dataset contains 313760 images
+2025-08-04 16:01:02,108 - Training - INFO - Using validation data from: ./data\val
+2025-08-04 16:01:02,518 - Training - INFO - Validation dataset contains 9078 images
+2025-08-04 16:01:03,540 - Training - INFO - Continuing training from epoch 9/40
+2025-08-04 16:01:03,989 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-04 16:01:04,017 - Training - INFO - Model moved to cuda
+2025-08-04 16:01:04,018 - Training - INFO - CUDA device count: 1
+2025-08-04 16:01:04,018 - Training - INFO - Current CUDA device: 0
+2025-08-04 16:01:04,018 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-04 16:01:04,019 - Training - INFO - Training started
+2025-08-04 16:01:04,022 - Training - INFO - Restored optimizer state

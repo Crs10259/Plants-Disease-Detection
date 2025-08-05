@@ -15,13 +15,12 @@ from skimage.util import random_noise
 from skimage import exposure
 import albumentations as A
 from typing import List, Optional, Tuple, Union, Dict, Any
-from config.config import config, paths
+from config import config, paths
 import random
 from concurrent.futures import ThreadPoolExecutor
 from utils.utils import handle_datasets
 import traceback
 import re
-import pandas as pd
 import threading
 import torch
 
@@ -490,10 +489,6 @@ class DataPreparation:
         """
         if not files:
             return 0
-            
-        # 如果未指定最大线程数，则设置为处理器核心数的2倍（但不超过128）
-        if max_workers is None:
-            max_workers = min(os.cpu_count() * 2, 128)
             
         # 按类别和数据集类型将文件分组
         train_files_by_class = {}
@@ -1106,7 +1101,7 @@ class DataPreparation:
         error_count = 0
         
         # 设置合理的工作线程数 - 限制线程数以避免资源耗尽
-        max_workers = min(self.config.aug_max_workers, 8)  # 最多使用8个线程，避免过度并行
+        max_workers = self.config.aug_max_workers  # 最多使用8个线程，避免过度并行
         
         # 使用更小的批次尺寸来降低内存使用
         batch_size = 50

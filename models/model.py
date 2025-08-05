@@ -2,19 +2,21 @@ import torch
 import torchvision
 import torch.nn.functional as F 
 from torch import nn
-from config.config import config
 import timm
 import os
 import ssl
 
-def get_densenet169():
-    """生成DenseNet169模型"""
+def get_densenet169(num_classes, pretrained=True):
+    """生成DenseNet169模型
+    Args:
+        pretrained (bool): 是否使用预训练权重，默认为True
+    """
     class DenseModel(nn.Module):
         def __init__(self, pretrained_model):
             super(DenseModel, self).__init__()
             self.features = pretrained_model.features
             self.classifier = nn.Sequential(
-                nn.Linear(pretrained_model.classifier.in_features, config.num_classes),
+                nn.Linear(pretrained_model.classifier.in_features, num_classes),
                 nn.Softmax(dim=1)
             )
             
@@ -40,11 +42,14 @@ def get_densenet169():
             out = self.classifier(out)
             return out
 
-    return DenseModel(torchvision.models.densenet169(pretrained=True))
+    return DenseModel(torchvision.models.densenet169(pretrained=pretrained))
 
-def get_efficientnet():
-    """获取EfficientNet-B4模型，使用渐进式解冻技术"""
-    model = torchvision.models.efficientnet_b4(pretrained=True)
+def get_efficientnet(num_classes, pretrained=True):
+    """获取EfficientNet-B4模型，使用渐进式解冻技术
+    Args:
+        pretrained (bool): 是否使用预训练权重，默认为True
+    """
+    model = torchvision.models.efficientnet_b4(pretrained=pretrained)
     
     # 冻结大部分层
     for name, param in model.named_parameters():
@@ -55,14 +60,17 @@ def get_efficientnet():
     in_features = model.classifier[1].in_features
     model.classifier = nn.Sequential(
         nn.Dropout(p=0.4, inplace=True),
-        nn.Linear(in_features, config.num_classes),
+        nn.Linear(in_features, num_classes),
         nn.Softmax(dim=1)
     )
     
     return model
 
-def get_efficientnetv2():
-    """获取EfficientNetV2-S模型，性能更好"""
+def get_efficientnetv2(num_classes, pretrained=True):
+    """获取EfficientNetV2-S模型，性能更好
+    Args:
+        pretrained (bool): 是否使用预训练权重，默认为True
+    """
     # 禁用SSL验证
     ssl._create_default_https_context = ssl._create_unverified_context
     
@@ -74,7 +82,7 @@ def get_efficientnetv2():
         # 使用本地缓存，禁用SSL验证
         model = timm.create_model(
             'tf_efficientnetv2_s',
-            pretrained=False,  # 暂时不使用预训练权重
+            pretrained=pretrained,
             num_classes=0,
             features_only=False,
             out_indices=None
@@ -94,7 +102,7 @@ def get_efficientnetv2():
         nn.BatchNorm1d(1024),
         nn.ReLU(inplace=True),
         nn.Dropout(0.3),
-        nn.Linear(1024, config.num_classes)
+        nn.Linear(1024, num_classes)
     )
     
     # 使用渐进式解冻
@@ -114,9 +122,12 @@ def get_efficientnetv2():
     
     return model
 
-def get_convnext():
-    """获取ConvNeXt模型"""
-    model = torchvision.models.convnext_small(pretrained=True)
+def get_convnext(num_classes, pretrained=True):
+    """获取ConvNeXt模型
+    Args:
+        pretrained (bool): 是否使用预训练权重，默认为True
+    """
+    model = torchvision.models.convnext_small(pretrained=pretrained)
     
     # 冻结早期层
     for name, param in model.named_parameters():
@@ -128,15 +139,18 @@ def get_convnext():
     model.classifier = nn.Sequential(
         nn.LayerNorm2d(in_features),
         nn.Flatten(1),
-        nn.Linear(in_features, config.num_classes),
+        nn.Linear(in_features, num_classes),
         nn.Softmax(dim=1)
     )
     
     return model
 
-def get_swin_transformer():
-    """获取Swin Transformer模型，适用于细粒度分类任务"""
-    model = timm.create_model('swin_small_patch4_window7_224', pretrained=True)
+def get_swin_transformer(num_classes, pretrained=True):
+    """获取Swin Transformer模型，适用于细粒度分类任务
+    Args:
+        pretrained (bool): 是否使用预训练权重，默认为True
+    """
+    model = timm.create_model('swin_small_patch4_window7_224', pretrained=pretrained)
     
     # 冻结早期层
     total_blocks = 4
@@ -153,19 +167,22 @@ def get_swin_transformer():
     feature_dim = model.head.in_features
     model.head = nn.Sequential(
         nn.LayerNorm(feature_dim),
-        nn.Linear(feature_dim, config.num_classes),
+        nn.Linear(feature_dim, num_classes),
         nn.Softmax(dim=1)
     )
     
     return model
 
-def get_hybrid_model():
-    """创建混合模型（CNN+Transformer），结合卷积网络的局部特征和Transformer的全局特征"""
+def get_hybrid_model(num_classes, pretrained=True):
+    """创建混合模型（CNN+Transformer），结合卷积网络的局部特征和Transformer的全局特征
+    Args:
+        pretrained (bool): 是否使用预训练权重，默认为True
+    """
     class HybridModel(nn.Module):
         def __init__(self):
             super(HybridModel, self).__init__()
             # CNN部分: 使用EfficientNet提取特征
-            self.cnn_model = timm.create_model('efficientnet_b3', pretrained=True, features_only=True)
+            self.cnn_model = timm.create_model('efficientnet_b3', pretrained=pretrained, features_only=True)
             
             # 冻结CNN早期层
             for name, param in self.cnn_model.named_parameters():
@@ -176,7 +193,7 @@ def get_hybrid_model():
             cnn_channels = self.cnn_model.feature_info.channels()[-1]  # 获取最后一层特征图的通道数
             self.transformer = timm.create_model(
                 'vit_small_patch16_224', 
-                pretrained=True,
+                pretrained=pretrained,
                 img_size=16,  # 特征图大小
                 patch_size=1,  # 使用1x1的patch
                 in_chans=cnn_channels,  # 输入通道数为CNN输出的通道数
@@ -194,7 +211,7 @@ def get_hybrid_model():
             self.classifier = nn.Sequential(
                 nn.LayerNorm(transformer_dim),
                 nn.Dropout(0.3),
-                nn.Linear(transformer_dim, config.num_classes),
+                nn.Linear(transformer_dim, num_classes),
                 nn.Softmax(dim=1)
             )
         
@@ -211,20 +228,23 @@ def get_hybrid_model():
     
     return HybridModel()
 
-def get_ensemble_model():
-    """创建模型集成，结合多个模型的优势"""
+def get_ensemble_model(num_classes, pretrained=True):
+    """创建模型集成，结合多个模型的优势
+    Args:
+        pretrained (bool): 是否使用预训练权重，默认为True
+    """
     class EnsembleModel(nn.Module):
         def __init__(self):
             super(EnsembleModel, self).__init__()
             
             # 加载多个预训练模型
-            self.model1 = get_efficientnetv2()  # EfficientNetV2
-            self.model2 = get_convnext()  # ConvNeXt
+            self.model1 = get_efficientnetv2(pretrained=pretrained)  # EfficientNetV2
+            self.model2 = get_convnext(pretrained=pretrained)  # ConvNeXt
             
             # 确保这些模型的输出层是一致的
             # 集成层 - 使用注意力机制进行加权
             self.attention = nn.Sequential(
-                nn.Linear(config.num_classes * 2, 2),
+                nn.Linear(num_classes * 2, 2),
                 nn.Softmax(dim=1)
             )
             
@@ -246,10 +266,13 @@ def get_ensemble_model():
     
     return EnsembleModel()
 
-def get_net():
+def get_net(model_name, num_classes, pretrained=True):
     """选择并返回模型
     
     可以在此选择哪个模型用于训练
+    
+    Args:
+        pretrained (bool): 是否使用预训练权重，默认为True
     """
     models = {
         "densenet169": get_densenet169,
@@ -261,10 +284,10 @@ def get_net():
         "ensemble_model": get_ensemble_model
     }
     
-    if config.model_name in models:
-        print(f"Using model: {config.model_name}")
-        return models[config.model_name]()
+    if model_name in models:
+        print(f"Using model: {model_name}")
+        return models[model_name](num_classes, pretrained=pretrained)
     else:
-        print(f"Model {config.model_name} not found, using default EfficientNetV2")
-        return get_efficientnetv2()
+        print(f"Model {model_name} not found, using default EfficientNetV2")
+        return get_efficientnetv2(num_classes, pretrained=pretrained)
 

@@ -9,7 +9,7 @@ from glob import glob
 from tqdm import tqdm
 from torch.utils.data import Dataset
 from torchvision import transforms as T 
-from config.config import config, paths
+from config import config, paths
 from PIL import Image 
 from concurrent.futures import ThreadPoolExecutor
 from utils.utils import handle_datasets
@@ -48,7 +48,7 @@ torch.cuda.manual_seed_all(config.seed)
 
 class PlantDiseaseDataset(Dataset):
     """植物病害图像数据集类"""
-    def __init__(self, label_list, transforms=None, train=True, test=False):
+    def __init__(self, label_list, sampling_threshold, sample_size=config.sample_size, seed=config.seed, img_weight=config.img_height, img_height=config.img_height, use_data_aug=config.use_data_aug, transforms=None, train=True, test=False, enable_sampling=config.enable_sampling):
         """初始化数据集
         
         参数:
@@ -61,6 +61,13 @@ class PlantDiseaseDataset(Dataset):
         self.train = train 
         self.transforms = self._get_transforms(transforms, train, test)
         self.imgs = self._load_images(label_list)
+        self.enable_sampling = enable_sampling
+        self.sampling_threshold = sampling_threshold
+        self.sample_size = sample_size
+        self.seed = seed
+        self.img_weight = img_weight
+        self.img_height = img_height
+        self.use_data_aug = use_data_aug
         
     def _load_images(self, label_list):
         """加载并验证图像
@@ -151,11 +158,11 @@ class PlantDiseaseDataset(Dataset):
                     print(f"Error processing batch: {str(e)}")
         
         # 对于极大的数据集，进行采样以减少内存压力
-        if config.enable_sampling and len(valid_imgs) > config.sampling_threshold:
+        if self.enable_sampling and len(valid_imgs) > self.sampling_threshold:
             print(f"\nThe dataset is very large ({len(valid_imgs)} effective images), Conduct sampling to reduce memory usage")
             import random
-            random.seed(config.seed)  # 保持一致性
-            valid_imgs = random.sample(valid_imgs, config.sample_size)
+            random.seed(self.seed)  # 保持一致性
+            valid_imgs = random.sample(valid_imgs, self.sample_size)
             print(f"The size of the sampled dataset: {len(valid_imgs)} images")
         
         if invalid_imgs:
@@ -189,7 +196,7 @@ class PlantDiseaseDataset(Dataset):
             
         # 基础转换
         base_transforms = [
-            T.Resize((config.img_weight, config.img_height)),
+            T.Resize((self.img_weight, self.img_height)),
             T.ToTensor(),
             T.Normalize(
                 mean=[0.485, 0.456, 0.406],
@@ -198,7 +205,7 @@ class PlantDiseaseDataset(Dataset):
         ]
         
         # 训练模式额外的数据增强，同时检查是否全局启用数据增强
-        if not test and train and config.use_data_aug:
+        if not test and train and self.use_data_aug:
             train_transforms = [
                 T.RandomRotation(30),
                 T.RandomHorizontalFlip(),
@@ -232,7 +239,7 @@ class PlantDiseaseDataset(Dataset):
         except Exception as e:
             print(f"Error loading image at index {index}: {str(e)}")
             # 返回空张量作为错误处理
-            return (torch.zeros((3, config.img_height, config.img_weight)), 
+            return (torch.zeros((3, self.img_height, self.img_weight)), 
                    self.imgs[index][1] if not self.test else self.imgs[index])
                 
     def __len__(self):
@@ -251,11 +258,10 @@ def collate_fn(batch):
     imgs, labels = zip(*batch)
     return torch.stack(imgs, 0), list(labels)
 
-def get_files(root, mode):
+def get_files(mode):
     """获取数据集文件路径和标签
     
     参数:
-        root: 根目录路径
         mode: 'train', 'val' 或 'test' 模式
         
     返回:

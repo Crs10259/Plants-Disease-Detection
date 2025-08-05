@@ -6,14 +6,12 @@ import numpy as np
 import torch
 import logging
 from PIL import Image
-from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple, Union
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 from tqdm import tqdm
-from collections import OrderedDict
 from utils.utils import MyEncoder
-from config.config import config, paths
+from config import config, paths
 from models.model import get_net
 
 class InferenceManager:
@@ -77,7 +75,7 @@ class InferenceManager:
         self.logger.info(f"Loading model from {model_path}")
         
         # 初始化模型架构
-        model = get_net()
+        model = get_net(model_name=config.model_name, num_classes=config.num_classes, pretrained=config.pretrained)
         
         # 加载权重
         try:

@@ -4,7 +4,7 @@ import torch
 import numpy as np 
 import warnings
 import logging
-from config.config import config, paths
+from config import config, paths
 from torch.utils.data import DataLoader
 from dataset.dataloader import *    
 from timeit import default_timer as timer
@@ -386,7 +386,7 @@ class Trainer:
         self.logger.info(f"Validation dataset contains {len(val_files)} images")
         
         # 创建数据集和数据加载器
-        val_dataset = PlantDiseaseDataset(val_files, train=False, test=False)
+        val_dataset = PlantDiseaseDataset(val_files)
         return DataLoader(
             val_dataset, 
             batch_size=self.config.val_batch_size,
@@ -439,7 +439,7 @@ class Trainer:
                 start_epoch = 0
         
         # Setup for training
-        model = get_net()
+        model = get_net(model_name=config.model_name, num_classes=config.num_classes, pretrained=config.pretrained)
         
         # Load weights if we're continuing training
         if start_epoch > 0:
@@ -633,7 +633,7 @@ class Trainer:
         self.logger.info(f"Training dataset contains {len(train_files)} images")
         
         # 创建数据集和数据加载器
-        train_dataset = PlantDiseaseDataset(train_files, train=True)
+        train_dataset = PlantDiseaseDataset(train_files)
         return DataLoader(
             train_dataset, 
             batch_size=self.config.train_batch_size,
