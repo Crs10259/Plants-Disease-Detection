@@ -24475,3 +24475,42 @@ Compile with `TORCH_USE_CUDA_DSA` to enable device-side assertions.
 2025-08-04 16:01:17,842 - Utils - INFO - Using timm's ModelEmaV2 implementation
 2025-08-04 16:01:22,953 - Utils - INFO - Using timm's ModelEmaV2 implementation
 2025-08-04 16:01:30,258 - Utils - INFO - Initializing EMA model parameters from source model
+2025-08-05 09:40:48,300 - Utils - INFO - Using timm's ModelEmaV2 implementation
+2025-08-05 09:40:52,495 - Main - INFO - No command specified. Running all operations in sequence.
+2025-08-05 09:40:52,495 - Main - INFO - Step 1: Data preparation
+2025-08-05 09:40:52,564 - Main - INFO - Training data already exists (31376 files), skipping training data preparation
+2025-08-05 09:40:52,583 - Main - INFO - Test data already exists, skipping test data preparation
+2025-08-05 09:40:52,584 - Main - INFO - All data already exists, skipping data preparation
+2025-08-05 09:40:52,584 - Main - INFO - Step 2: Model training
+2025-08-05 09:40:52,584 - Main - INFO - Starting training pipeline
+2025-08-05 09:40:52,666 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-05 09:40:53,156 - Utils - INFO - Using merged training dataset: ./data/merged_train/
+2025-08-05 09:40:53,159 - Training - INFO - Using training data from: ./data/merged_train/
+2025-08-05 09:40:53,769 - Utils - INFO - Using merged training dataset: ./data/merged_train/
+2025-08-05 09:40:53,772 - DataLoader - INFO - Loading train dataset from: ./data/merged_train/
+2025-08-05 09:40:54,847 - DataLoader - INFO - Loading train dataset (313760 images)
+2025-08-05 09:40:55,661 - Training - INFO - Training dataset contains 313760 images
+2025-08-05 09:46:06,900 - Utils - INFO - Found 1 val datasets: ['./data\\val']
+2025-08-05 09:46:06,901 - Utils - INFO - Using single val dataset: ./data\val
+2025-08-05 09:46:06,901 - Training - INFO - Using validation data from: ./data\val
+2025-08-05 09:46:07,795 - Utils - INFO - Found 1 val datasets: ['./data\\val']
+2025-08-05 09:46:07,796 - Utils - INFO - Using single val dataset: ./data\val
+2025-08-05 09:46:07,796 - DataLoader - INFO - Loading val dataset from: ./data\val
+2025-08-05 09:46:07,904 - DataLoader - INFO - Loading val dataset (9078 images)
+2025-08-05 09:46:07,959 - Training - INFO - Validation dataset contains 9078 images
+2025-08-05 09:46:18,494 - Training - INFO - Continuing training from epoch 9/40
+2025-08-05 09:46:19,738 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-05 09:46:19,841 - Training - INFO - Model moved to cuda
+2025-08-05 09:46:19,841 - Training - INFO - CUDA device count: 1
+2025-08-05 09:46:19,842 - Training - INFO - Current CUDA device: 0
+2025-08-05 09:46:19,842 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-05 09:46:19,843 - Training - INFO - Training started
+2025-08-05 09:46:19,844 - Utils - INFO - Using Improved Focal Loss with label smoothing
+2025-08-05 09:46:19,854 - Training - INFO - Restored optimizer state
+2025-08-05 09:46:19,854 - Utils - INFO - Created cosine scheduler
+2025-08-05 09:46:20,033 - Utils - INFO - Created EMA model with decay rate 0.995
+2025-08-05 09:46:23,596 - Utils - INFO - Using timm's ModelEmaV2 implementation
+2025-08-05 09:46:29,440 - Utils - INFO - Using timm's ModelEmaV2 implementation
+2025-08-05 09:46:34,354 - Utils - INFO - Using timm's ModelEmaV2 implementation
+2025-08-05 09:46:40,148 - Utils - INFO - Using timm's ModelEmaV2 implementation
+2025-08-05 09:46:50,415 - Utils - INFO - Initializing EMA model parameters from source model

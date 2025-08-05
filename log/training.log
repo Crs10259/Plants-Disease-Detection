@@ -78,3 +78,16 @@
 2025-08-04 16:01:04,018 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
 2025-08-04 16:01:04,019 - Training - INFO - Training started
 2025-08-04 16:01:04,022 - Training - INFO - Restored optimizer state
+2025-08-05 09:40:52,666 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-05 09:40:53,159 - Training - INFO - Using training data from: ./data/merged_train/
+2025-08-05 09:40:55,661 - Training - INFO - Training dataset contains 313760 images
+2025-08-05 09:46:06,901 - Training - INFO - Using validation data from: ./data\val
+2025-08-05 09:46:07,959 - Training - INFO - Validation dataset contains 9078 images
+2025-08-05 09:46:18,494 - Training - INFO - Continuing training from epoch 9/40
+2025-08-05 09:46:19,738 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-05 09:46:19,841 - Training - INFO - Model moved to cuda
+2025-08-05 09:46:19,841 - Training - INFO - CUDA device count: 1
+2025-08-05 09:46:19,842 - Training - INFO - Current CUDA device: 0
+2025-08-05 09:46:19,842 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-05 09:46:19,843 - Training - INFO - Training started
+2025-08-05 09:46:19,854 - Training - INFO - Restored optimizer state

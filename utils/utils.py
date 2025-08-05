@@ -6,7 +6,7 @@ import json
 import numpy as np
 import logging
 from pathlib import Path
-from typing import Dict, Tuple, Union, Optional, Any
+from typing import Dict, List, Tuple, Union, Optional, Any
 from config import config, paths
 from torch import nn
 import torch.nn.functional as F
