@@ -175,10 +175,10 @@ def setup_parser() -> argparse.ArgumentParser:
     # 推理命令
     infer_parser = subparsers.add_parser('predict', 
                                          help='Run inference with a trained model')
-    infer_parser.add_argument('--model', type=str, required=True, 
-                             help='Path to model weights file')
-    infer_parser.add_argument('--input', type=str, required=True, 
-                             help='Path to image folder or single image')
+    infer_parser.add_argument('--model', type=str, 
+                             help=f'Path to model weights file (default: auto-detect best model)')
+    infer_parser.add_argument('--input', type=str, 
+                             help=f'Path to image folder or single image (default: {paths.test_images_dir})')
     infer_parser.add_argument('--output', type=str, 
                              help=f'Output JSON file path (default: {paths.prediction_file})')
     
@@ -536,14 +536,35 @@ def run_inference(args) -> None:
     """
     logger.info("Starting inference")
     
+    # 设置默认模型路径
+    if not hasattr(args, 'model') or not args.model:
+        # 自动查找最佳模型文件
+        best_model_path = os.path.join(config.best_weights, config.model_name, "0", "best_model.pth.tar")
+        if not os.path.exists(best_model_path):
+            best_model_path = os.path.join(config.weights, config.model_name, "0", "_latest_model.pth.tar")
+        
+        if not os.path.exists(best_model_path):
+            logger.error(f"Could not find model file. Please specify --model or ensure model exists at: {best_model_path}")
+            return
+        
+        model_path = best_model_path
+        logger.info(f"Using auto-detected model: {model_path}")
+    else:
+        model_path = args.model
+    
     # 验证模型文件是否存在
-    model_path = args.model
     if not os.path.exists(model_path):
         logger.error(f"Model file not found: {model_path}")
         return
+    
+    # 设置默认输入路径
+    if not hasattr(args, 'input') or not args.input:
+        input_path = paths.test_images_dir
+        logger.info(f"Using default input path: {input_path}")
+    else:
+        input_path = args.input
         
     # 获取输入路径，可以是单个图像或目录
-    input_path = args.input
     if not os.path.exists(input_path):
         logger.error(f"Input path not found: {input_path}")
         

@@ -386,7 +386,7 @@ class Trainer:
         self.logger.info(f"Validation dataset contains {len(val_files)} images")
         
         # 创建数据集和数据加载器
-        val_dataset = PlantDiseaseDataset(val_files)
+        val_dataset = PlantDiseaseDataset(val_files, sampling_threshold=config.sampling_threshold)
         return DataLoader(
             val_dataset, 
             batch_size=self.config.val_batch_size,
@@ -633,7 +633,7 @@ class Trainer:
         self.logger.info(f"Training dataset contains {len(train_files)} images")
         
         # 创建数据集和数据加载器
-        train_dataset = PlantDiseaseDataset(train_files)
+        train_dataset = PlantDiseaseDataset(train_files, sampling_threshold=config.sampling_threshold)
         return DataLoader(
             train_dataset, 
             batch_size=self.config.train_batch_size,

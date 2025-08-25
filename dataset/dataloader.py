@@ -48,7 +48,7 @@ torch.cuda.manual_seed_all(config.seed)
 
 class PlantDiseaseDataset(Dataset):
     """植物病害图像数据集类"""
-    def __init__(self, label_list, sampling_threshold, sample_size=config.sample_size, seed=config.seed, img_weight=config.img_height, img_height=config.img_height, use_data_aug=config.use_data_aug, transforms=None, train=True, test=False, enable_sampling=config.enable_sampling):
+    def __init__(self, label_list, sampling_threshold, sample_size=config.sample_size, seed=config.seed, img_weight=config.img_weight, img_height=config.img_height, use_data_aug=config.use_data_aug, transforms=None, train=True, test=False, enable_sampling=config.enable_sampling):
         """初始化数据集
         
         参数:
@@ -59,8 +59,6 @@ class PlantDiseaseDataset(Dataset):
         """
         self.test = test 
         self.train = train 
-        self.transforms = self._get_transforms(transforms, train, test)
-        self.imgs = self._load_images(label_list)
         self.enable_sampling = enable_sampling
         self.sampling_threshold = sampling_threshold
         self.sample_size = sample_size
@@ -68,6 +66,8 @@ class PlantDiseaseDataset(Dataset):
         self.img_weight = img_weight
         self.img_height = img_height
         self.use_data_aug = use_data_aug
+        self.transforms = self._get_transforms(transforms, train, test)
+        self.imgs = self._load_images(label_list)
         
     def _load_images(self, label_list):
         """加载并验证图像
@@ -258,17 +258,18 @@ def collate_fn(batch):
     imgs, labels = zip(*batch)
     return torch.stack(imgs, 0), list(labels)
 
-def get_files(mode):
+def get_files(data_path, mode):
     """获取数据集文件路径和标签
     
     参数:
+        data_path: 数据集根目录路径
         mode: 'train', 'val' 或 'test' 模式
         
     返回:
         包含文件路径和标签的DataFrame
     """
-    # 处理多数据集情况，获取实际使用的数据集路径
-    actual_root = handle_datasets(data_type=mode)
+    # 使用传入的数据路径，而不是调用handle_datasets
+    actual_root = data_path
     
     if not os.path.exists(actual_root):
         raise FileNotFoundError(f"Directory not found: {actual_root}")

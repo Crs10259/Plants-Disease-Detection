@@ -125,15 +125,15 @@ class DefaultConfigs:
     supported_dataset_formats: Tuple[str, ...] = ('.zip', '.rar', '.tar', '.gz', '.tgz')  # 支持的数据集格式
     
     # 数据集合并配置 Dataset Merging Configuration
-    merge_datasets: bool = True  # 是否合并多个数据集，当设置时会影响所有三个数据集的合并设置
-    merge_train_datasets: bool = True  # 是否合并训练数据集
-    merge_val_datasets: bool = True  # 是否合并验证数据集
-    merge_test_datasets: bool = True  # 是否合并测试数据集，默认开启
+    merge_datasets: bool = False  # 是否合并多个数据集，当设置时会影响所有三个数据集的合并设置
+    merge_train_datasets: bool = False  # 是否合并训练数据集
+    merge_val_datasets: bool = False  # 是否合并验证数据集
+    merge_test_datasets: bool = False  # 是否合并测试数据集，默认开启
     dataset_to_use: str = "auto"  # 不合并时选择使用哪个数据集: "auto"(最大的), "first", "last", "specific"
     specific_dataset: str = ""  # 指定使用的数据集名称，当dataset_to_use="specific"时有效
-    duplicate_test_to_common: bool = True  # 是否将测试集复制到通用测试目录
-    merge_force: bool = True  # 是否强制重新合并已存在的数据集
-    merge_on_startup: bool = True  # 是否在程序启动时自动合并数据集
+    duplicate_test_to_common: bool = False  # 是否将测试集复制到通用测试目录
+    merge_force: bool = False  # 是否强制重新合并已存在的数据集
+    merge_on_startup: bool = False  # 是否在程序启动时自动合并数据集
     force_data_processing: bool = False  # 是否强制重新处理数据（即使已存在处理后的数据）
     force_augmentation: bool = False  # 是否强制重新生成数据增强（即使已存在增强数据）
     force_merge: bool = False  # 是否强制重新合并数据集（即使合并的数据集已存在）
@@ -155,10 +155,10 @@ class DefaultConfigs:
     # 训练参数 Training Parameters
     epoch: int = 40  # 训练轮数
     pretrained: bool = False  # 是否使用预训练权重
-    train_batch_size: int = 16  # 降低批次大小以适应更大的模型
-    val_batch_size: int = 16  # 验证批次大小
-    test_batch_size: int = 16  # 测试批次大小
-    num_workers: str = 4  # 数据加载线程数
+    train_batch_size: int = 64  # 降低批次大小以适应更大的模型
+    val_batch_size: int = 64  # 验证批次大小
+    test_batch_size: int = 64  # 测试批次大小
+    num_workers: str = 32  # 数据加载线程数
     img_height: int = 384  # 图像高度
     img_weight: int = 384  # 图像宽度
     num_classes: int = 59  # 类别数量

@@ -91,3 +91,207 @@
 2025-08-05 09:46:19,842 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
 2025-08-05 09:46:19,843 - Training - INFO - Training started
 2025-08-05 09:46:19,854 - Training - INFO - Restored optimizer state
+2025-08-06 22:10:01,139 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-06 22:10:01,591 - Training - INFO - Using training data from: ./data/merged_train/
+2025-08-18 16:21:11,479 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:21:11,700 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:23:51,062 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:23:51,244 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:35:02,521 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:35:02,705 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:35:02,770 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 16:36:57,372 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:36:57,528 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:36:57,590 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 16:37:42,112 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:37:42,397 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:37:42,511 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 16:38:57,486 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:38:57,660 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:38:57,725 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 16:39:04,029 - Training - INFO - Using validation data from: ./data\val
+2025-08-18 16:39:04,030 - Training - WARNING - No image files found in validation path: ./data\val
+2025-08-18 16:39:04,030 - Training - WARNING - No validation data available. Training will proceed without validation.
+2025-08-18 16:39:04,358 - Training - INFO - Model already trained for 9 epochs (configured: 1)
+2025-08-18 16:39:48,100 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:39:48,329 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:39:48,393 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 16:39:49,155 - Training - INFO - Using validation data from: ./data\val
+2025-08-18 16:39:49,157 - Training - WARNING - No image files found in validation path: ./data\val
+2025-08-18 16:39:49,157 - Training - WARNING - No validation data available. Training will proceed without validation.
+2025-08-18 16:39:49,451 - Training - INFO - Model already trained for 9 epochs (configured: 1)
+2025-08-18 16:40:14,835 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:40:15,023 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:40:15,099 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 16:40:15,886 - Training - INFO - Using validation data from: ./data\val
+2025-08-18 16:40:15,887 - Training - WARNING - No image files found in validation path: ./data\val
+2025-08-18 16:40:15,887 - Training - WARNING - No validation data available. Training will proceed without validation.
+2025-08-18 16:40:16,195 - Training - INFO - Continuing training from epoch 9/40
+2025-08-18 16:40:16,641 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-18 16:40:16,671 - Training - INFO - Model moved to cuda
+2025-08-18 16:40:16,671 - Training - INFO - CUDA device count: 1
+2025-08-18 16:40:16,671 - Training - INFO - Current CUDA device: 0
+2025-08-18 16:40:16,671 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:40:16,672 - Training - INFO - Training started
+2025-08-18 16:40:16,675 - Training - INFO - Restored optimizer state
+2025-08-18 16:41:57,937 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:41:58,096 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:41:58,160 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 16:41:58,907 - Training - INFO - Using validation data from: ./data\val
+2025-08-18 16:41:58,909 - Training - WARNING - No image files found in validation path: ./data\val
+2025-08-18 16:41:58,909 - Training - WARNING - No validation data available. Training will proceed without validation.
+2025-08-18 16:41:59,215 - Training - INFO - Continuing training from epoch 9/40
+2025-08-18 16:41:59,670 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-18 16:41:59,697 - Training - INFO - Model moved to cuda
+2025-08-18 16:41:59,698 - Training - INFO - CUDA device count: 1
+2025-08-18 16:41:59,698 - Training - INFO - Current CUDA device: 0
+2025-08-18 16:41:59,698 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:41:59,699 - Training - INFO - Training started
+2025-08-18 16:41:59,702 - Training - INFO - Restored optimizer state
+2025-08-18 16:44:25,627 - Training - INFO - Using CPU (as requested)
+2025-08-18 16:44:28,242 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:44:28,377 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 16:44:29,328 - Training - INFO - Using validation data from: ./data\val
+2025-08-18 16:44:29,329 - Training - WARNING - No image files found in validation path: ./data\val
+2025-08-18 16:44:29,330 - Training - WARNING - No validation data available. Training will proceed without validation.
+2025-08-18 16:44:30,027 - Training - INFO - Continuing training from epoch 9/40
+2025-08-18 16:44:30,380 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-18 16:44:30,383 - Training - INFO - Model moved to cpu
+2025-08-18 16:44:30,417 - Training - INFO - CUDA device count: 1
+2025-08-18 16:44:30,421 - Training - INFO - Current CUDA device: 0
+2025-08-18 16:44:30,422 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:44:30,423 - Training - INFO - Training started
+2025-08-18 16:44:30,428 - Training - INFO - Restored optimizer state
+2025-08-18 16:48:14,858 - Training - INFO - Using CPU (as requested)
+2025-08-18 16:48:21,064 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:48:21,274 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 16:48:24,665 - Training - INFO - Using validation data from: ./data\val
+2025-08-18 16:48:24,668 - Training - WARNING - No image files found in validation path: ./data\val
+2025-08-18 16:48:24,668 - Training - WARNING - No validation data available. Training will proceed without validation.
+2025-08-18 16:48:25,666 - Training - INFO - Continuing training from epoch 9/40
+2025-08-18 16:48:26,656 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-18 16:48:26,682 - Training - INFO - Model moved to cpu
+2025-08-18 16:48:26,785 - Training - INFO - CUDA device count: 1
+2025-08-18 16:48:26,793 - Training - INFO - Current CUDA device: 0
+2025-08-18 16:48:26,794 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:48:26,795 - Training - INFO - Training started
+2025-08-18 16:48:26,804 - Training - INFO - Restored optimizer state
+2025-08-18 16:52:20,950 - Training - INFO - Using CPU (as requested)
+2025-08-18 16:52:23,011 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:52:23,096 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 16:52:24,128 - Training - INFO - Using validation data from: ./data\val
+2025-08-18 16:52:24,129 - Training - WARNING - No image files found in validation path: ./data\val
+2025-08-18 16:52:24,130 - Training - WARNING - No validation data available. Training will proceed without validation.
+2025-08-18 16:52:24,882 - Training - INFO - Continuing training from epoch 9/40
+2025-08-18 16:52:25,309 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-18 16:52:25,312 - Training - INFO - Model moved to cpu
+2025-08-18 16:52:25,334 - Training - INFO - CUDA device count: 1
+2025-08-18 16:52:25,338 - Training - INFO - Current CUDA device: 0
+2025-08-18 16:52:25,338 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:52:25,339 - Training - INFO - Training started
+2025-08-18 16:52:25,346 - Training - INFO - Restored optimizer state
+2025-08-18 16:55:57,703 - Training - INFO - Using CPU (as requested)
+2025-08-18 16:55:57,899 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:55:57,983 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 16:55:58,737 - Training - INFO - Using validation data from: ./data\val
+2025-08-18 16:55:58,739 - Training - WARNING - No image files found in validation path: ./data\val
+2025-08-18 16:55:58,739 - Training - WARNING - No validation data available. Training will proceed without validation.
+2025-08-18 16:55:58,895 - Training - INFO - Continuing training from epoch 9/40
+2025-08-18 16:55:59,266 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-18 16:55:59,271 - Training - INFO - Model moved to cpu
+2025-08-18 16:55:59,292 - Training - INFO - CUDA device count: 1
+2025-08-18 16:55:59,294 - Training - INFO - Current CUDA device: 0
+2025-08-18 16:55:59,295 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:55:59,296 - Training - INFO - Training started
+2025-08-18 16:55:59,301 - Training - INFO - Restored optimizer state
+2025-08-18 16:58:57,631 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:58:57,815 - Training - INFO - Using training data from: ./data\train
+2025-08-18 16:58:57,889 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 16:58:58,665 - Training - INFO - Using validation data from: ./data\val
+2025-08-18 16:58:58,666 - Training - WARNING - No image files found in validation path: ./data\val
+2025-08-18 16:58:58,667 - Training - WARNING - No validation data available. Training will proceed without validation.
+2025-08-18 16:58:58,959 - Training - INFO - Continuing training from epoch 9/40
+2025-08-18 16:58:59,413 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-18 16:58:59,449 - Training - INFO - Model moved to cuda
+2025-08-18 16:58:59,450 - Training - INFO - CUDA device count: 1
+2025-08-18 16:58:59,450 - Training - INFO - Current CUDA device: 0
+2025-08-18 16:58:59,450 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 16:58:59,451 - Training - INFO - Training started
+2025-08-18 16:58:59,454 - Training - INFO - Restored optimizer state
+2025-08-18 17:05:36,564 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 17:05:37,727 - Training - INFO - Using training data from: ./data\train
+2025-08-18 17:05:37,799 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 17:05:43,367 - Training - INFO - Using validation data from: ./data\val
+2025-08-18 17:05:43,369 - Training - WARNING - No image files found in validation path: ./data\val
+2025-08-18 17:05:43,369 - Training - WARNING - No validation data available. Training will proceed without validation.
+2025-08-18 17:05:44,080 - Training - INFO - Continuing training from epoch 9/40
+2025-08-18 17:05:44,630 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-18 17:05:44,661 - Training - INFO - Model moved to cuda
+2025-08-18 17:05:44,661 - Training - INFO - CUDA device count: 1
+2025-08-18 17:05:44,661 - Training - INFO - Current CUDA device: 0
+2025-08-18 17:05:44,662 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 17:05:44,662 - Training - INFO - Training started
+2025-08-18 17:05:44,665 - Training - INFO - Restored optimizer state
+2025-08-18 17:10:10,214 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 17:10:10,398 - Training - INFO - Using training data from: ./data\train
+2025-08-18 17:10:10,463 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 17:10:11,235 - Training - INFO - Using validation data from: ./data\val
+2025-08-18 17:10:11,237 - Training - WARNING - No image files found in validation path: ./data\val
+2025-08-18 17:10:11,237 - Training - WARNING - No validation data available. Training will proceed without validation.
+2025-08-18 17:10:11,565 - Training - INFO - Continuing training from epoch 9/40
+2025-08-18 17:10:11,974 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-18 17:10:12,007 - Training - INFO - Model moved to cuda
+2025-08-18 17:10:12,007 - Training - INFO - CUDA device count: 1
+2025-08-18 17:10:12,007 - Training - INFO - Current CUDA device: 0
+2025-08-18 17:10:12,008 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 17:10:12,008 - Training - INFO - Training started
+2025-08-18 17:10:12,012 - Training - INFO - Restored optimizer state
+2025-08-18 20:26:50,455 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 20:26:52,257 - Training - INFO - Using training data from: ./data\train
+2025-08-18 20:26:52,334 - Training - INFO - Training dataset contains 9496 images
+2025-08-18 20:26:57,121 - Training - INFO - Using validation data from: ./data\val
+2025-08-18 20:26:57,122 - Training - WARNING - No image files found in validation path: ./data\val
+2025-08-18 20:26:57,123 - Training - WARNING - No validation data available. Training will proceed without validation.
+2025-08-18 20:26:57,838 - Training - INFO - Model already trained for 9 epochs (configured: 1)
+2025-08-18 20:28:56,137 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-18 20:28:56,146 - Training - INFO - Using training data from: ./data\train
+2025-08-18 20:28:56,146 - Training - ERROR - No image files found in training path: ./data\train
+2025-08-19 14:46:16,072 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-19 14:46:18,304 - Training - INFO - Using training data from: ./data\aug\train
+2025-08-19 14:46:19,904 - Training - INFO - Training dataset contains 251008 images
+2025-08-19 14:48:54,170 - Training - INFO - Using validation data from: ./data\val
+2025-08-19 14:48:54,232 - Training - INFO - Validation dataset contains 9078 images
+2025-08-19 14:49:02,276 - Training - INFO - Continuing training from epoch 9/40
+2025-08-19 14:49:02,742 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-19 14:49:02,780 - Training - INFO - Model moved to cuda
+2025-08-19 14:49:02,780 - Training - INFO - CUDA device count: 1
+2025-08-19 14:49:02,780 - Training - INFO - Current CUDA device: 0
+2025-08-19 14:49:02,781 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-19 14:49:02,781 - Training - INFO - Training started
+2025-08-19 14:49:02,785 - Training - INFO - Restored optimizer state
+2025-08-19 15:06:09,149 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-19 15:06:15,118 - Training - INFO - Using training data from: ./data\aug\train
+2025-08-19 15:06:18,804 - Training - INFO - Training dataset contains 251008 images
+2025-08-19 15:08:44,796 - Training - INFO - Using validation data from: ./data\val
+2025-08-19 15:08:44,867 - Training - INFO - Validation dataset contains 9078 images
+2025-08-19 15:08:46,747 - Training - INFO - Continuing training from epoch 9/40
+2025-08-19 15:08:47,223 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-19 15:08:47,256 - Training - INFO - Model moved to cuda
+2025-08-19 15:08:47,256 - Training - INFO - CUDA device count: 1
+2025-08-19 15:08:47,256 - Training - INFO - Current CUDA device: 0
+2025-08-19 15:08:47,256 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-19 15:08:47,257 - Training - INFO - Training started
+2025-08-19 15:08:47,261 - Training - INFO - Restored optimizer state
+2025-08-19 15:24:56,380 - Training - INFO - Using GPU: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-19 15:25:00,863 - Training - INFO - Using training data from: ./data\aug\train
+2025-08-19 15:25:03,155 - Training - INFO - Training dataset contains 251008 images
+2025-08-19 15:25:23,973 - Training - INFO - Using validation data from: ./data\val
+2025-08-19 15:25:24,065 - Training - INFO - Validation dataset contains 9078 images
+2025-08-19 15:25:25,732 - Training - INFO - Continuing training from epoch 9/40
+2025-08-19 15:25:26,297 - Training - INFO - Loaded weights from ./weight/best/efficientnetv2_s\0\best_model.pth.tar
+2025-08-19 15:25:26,335 - Training - INFO - Model moved to cuda
+2025-08-19 15:25:26,336 - Training - INFO - CUDA device count: 1
+2025-08-19 15:25:26,336 - Training - INFO - Current CUDA device: 0
+2025-08-19 15:25:26,336 - Training - INFO - CUDA device name: NVIDIA GeForce RTX 4060 Laptop GPU
+2025-08-19 15:25:26,337 - Training - INFO - Training started
+2025-08-19 15:25:26,340 - Training - INFO - Restored optimizer state
