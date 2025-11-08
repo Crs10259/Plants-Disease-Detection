@@ -16,11 +16,6 @@
 python main.py
 ```
 
-### 改进版本 (推荐)
-```bash
-python improved_main.py
-```
-
 改进版本包含以下优化：
 - 自适应学习率调度
 - 类别不平衡处理
@@ -31,9 +26,9 @@ python improved_main.py
 ## 安装依赖
 
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
-
+## 数据集使用 [https://github.com/spytensor/plants_disease_detection]
 ## 项目结构
 
 ```
@@ -45,7 +40,6 @@ pip install -r requirements.txt
 ├── utils/           # 实用工具
 ├── weight/          # 模型权重
 ├── main.py          # 主程序入口
-├── improved_main.py # 改进版主程序
 └── README.md        # 项目说明
 ```
 
