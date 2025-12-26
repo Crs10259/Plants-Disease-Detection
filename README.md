@@ -38,7 +38,7 @@ uv sync
 ├── models/          # 模型定义
 ├── tools/           # 辅助工具
 ├── utils/           # 实用工具
-├── weight/          # 模型权重
+├── checkpoints/     # 模型检查点
 ├── main.py          # 主程序入口
 └── README.md        # 项目说明
 ```

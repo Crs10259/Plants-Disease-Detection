@@ -75,8 +75,8 @@ def get_efficientnetv2(num_classes, pretrained=True):
     ssl._create_default_https_context = ssl._create_unverified_context
     
     # 设置环境变量
-    os.environ['TORCH_HOME'] = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'weight', 'pretrained')
-    os.environ['HF_HOME'] = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'weight', 'pretrained')
+    os.environ['TORCH_HOME'] = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'checkpoints', 'pretrained')
+    os.environ['HF_HOME'] = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'checkpoints', 'pretrained')
     
     try:
         # 使用本地缓存，禁用SSL验证

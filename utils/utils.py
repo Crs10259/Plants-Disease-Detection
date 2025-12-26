@@ -903,30 +903,6 @@ if __name__ == "__main__":
     if args.test:
         test_dataset_handling()
 
-def accuracy(output: torch.Tensor, target: torch.Tensor, topk: Tuple[int, ...] = (1,)):
-    """计算top-k准确率
-    
-    参数:
-        output: 模型输出
-        target: 目标标签
-        topk: 要计算的top-k值
-        
-    返回:
-        top-k准确率列表
-    """
-    maxk = max(topk)
-    batch_size = target.size(0)
-
-    _, pred = output.topk(maxk, 1, True, True)
-    pred = pred.t()
-    correct = pred.eq(target.view(1, -1).expand_as(pred))
-
-    res = []
-    for k in topk:
-        correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
-        res.append(correct_k.mul_(100.0 / batch_size))
-    return res 
-
 def process_images_multithread(images, process_function, max_workers=None, batch_size=50, desc="Processing images"):
     """使用多线程技术以批处理方式处理大量图像
     

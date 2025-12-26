@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, Union
 from dataclasses import dataclass, field
 import os
 
@@ -31,9 +31,9 @@ class PathConfig:
     aug_train_dir: str = "./data/aug/train/"
     augmented_images_dir: str = "./data/aug/images/"
     
-    # 模型目录
-    weight_dir: str = "./weight/"
-    best_weight_dir: str = "./weight/best/"
+    # 检查点目录
+    weight_dir: str = "./checkpoints/"
+    best_weight_dir: str = "./checkpoints/best/"
     
     # 输出目录
     submit_dir: str = "./submit/"
@@ -158,7 +158,7 @@ class DefaultConfigs:
     train_batch_size: int = 64  # 降低批次大小以适应更大的模型
     val_batch_size: int = 64  # 验证批次大小
     test_batch_size: int = 64  # 测试批次大小
-    num_workers: str = 32  # 数据加载线程数
+    num_workers: Union[int, str] = 32  # 数据加载线程数（可以是整数或 'auto'）
     img_height: int = 384  # 图像高度
     img_weight: int = 384  # 图像宽度
     num_classes: int = 59  # 类别数量
@@ -243,15 +243,35 @@ class DefaultConfigs:
 
         # 设置工作线程数
         if self.num_workers == 'auto':
-            import psutil
-            self.num_workers = psutil.cpu_count(logical=False)
+            try:
+                import psutil  # type: ignore
+                self.num_workers = psutil.cpu_count(logical=False)
+            except ImportError:
+                import multiprocessing
+                self.num_workers = multiprocessing.cpu_count()
+        elif isinstance(self.num_workers, str):
+            # 如果传入的是字符串数字，转换为整数
+            try:
+                self.num_workers = int(self.num_workers)
+            except ValueError:
+                raise ValueError("num_workers must be 'auto', a positive integer, or a string representing an integer")
         elif not isinstance(self.num_workers, int) or self.num_workers <= 0:
             raise ValueError("num_workers must be 'auto' or a positive integer")
 
         # 设置数据增强线程数
         if self.aug_num_workers == 'auto':
-            import psutil
-            self.aug_num_workers = psutil.cpu_count(logical=False)
+            try:
+                import psutil  # type: ignore
+                self.aug_num_workers = psutil.cpu_count(logical=False)
+            except ImportError:
+                import multiprocessing
+                self.aug_num_workers = multiprocessing.cpu_count()
+        elif isinstance(self.aug_num_workers, str):
+            # 如果传入的是字符串数字，转换为整数
+            try:
+                self.aug_num_workers = int(self.aug_num_workers)
+            except ValueError:
+                raise ValueError("aug_num_workers must be 'auto', a positive integer, or a string representing an integer")
         elif not isinstance(self.aug_num_workers, int) or self.aug_num_workers <= 0:
             raise ValueError("aug_num_workers must be 'auto' or a positive integer")
 
